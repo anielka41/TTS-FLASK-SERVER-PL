@@ -76,7 +76,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "cfg_weight": 0.5,  # Classifier-Free Guidance weight, influences adherence to prompt/style.
         "seed": 0,  # Random seed for generation. 0 often means random or engine default.
         "speed_factor": 1.0,  # Controls the speed of the generated speech.
-        "language": "en",  # Default language for TTS.
+        "sentence_pause_ms": 500,  # Pause between chunks (sentences) in milliseconds.
+        "language": "pl",  # Default language for TTS.
     },
     "audio_output": {  # Settings related to the format of generated audio.
         "format": "wav",  # Output audio format (e.g., 'wav', 'mp3').
@@ -92,6 +93,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "last_seed": 0,  # Last used generation seed.
         "last_chunk_size": 120,  # Last used chunk size for text splitting in UI.
         "last_split_text_enabled": True,  # Whether text splitting was last enabled in UI.
+        "last_speed_factor": 1.0,  # Last used speed factor.
+        "last_sentence_pause_ms": 500,  # Last used sentence pause duration in ms.
         "hide_chunk_warning": False,  # Flag to hide the chunking warning modal.
         "hide_generation_warning": False,  # Flag to hide the general generation quality notice modal.
         "theme": "dark",  # Default UI theme ('dark' or 'light').
@@ -843,6 +846,14 @@ def get_gen_default_speed_factor() -> float:
     return config_manager.get_float(
         "generation_defaults.speed_factor",
         _get_default_from_structure("generation_defaults.speed_factor"),
+    )
+
+
+def get_gen_default_sentence_pause_ms() -> int:
+    """Returns the default sentence pause duration in ms."""
+    return config_manager.get_int(
+        "generation_defaults.sentence_pause_ms",
+        _get_default_from_structure("generation_defaults.sentence_pause_ms"),
     )
 
 

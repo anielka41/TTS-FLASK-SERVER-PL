@@ -84,6 +84,12 @@ const settingsModule = (() => {
               <span>Zwalniaj VRAM po jobie</span>
             </div>
           </div>
+          
+          <div class="form-group">
+            <label>Liczba procesów generacji (workery): <span id="s-workers-val">${s.num_workers ?? 1}</span></label>
+            <input type="range" id="s-num-workers" min="1" max="8" step="1" value="${s.num_workers ?? 1}"
+              oninput="document.getElementById('s-workers-val').textContent=this.value">
+          </div>
         </div>
 
         <!-- Chatterbox Settings -->
@@ -128,6 +134,18 @@ const settingsModule = (() => {
             <label>Temperatura: <span id="s-temp-val">${s.chatterbox_mtl_local_temperature ?? 0.8}</span></label>
             <input type="range" id="s-temperature" min="0.1" max="1.5" step="0.05" value="${s.chatterbox_mtl_local_temperature ?? 0.8}"
               oninput="document.getElementById('s-temp-val').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+
+          <div class="form-group">
+            <label>Prędkość mówienia (Speed Factor): <span id="s-speed-val">${s.chatterbox_mtl_local_speed_factor ?? 1.0}</span></label>
+            <input type="range" id="s-speed-factor" min="0.5" max="2.0" step="0.05" value="${s.chatterbox_mtl_local_speed_factor ?? 1.0}"
+              oninput="document.getElementById('s-speed-val').textContent=parseFloat(this.value).toFixed(2)">
+          </div>
+
+          <div class="form-group">
+            <label>Przerwa między zdaniami (ms): <span id="s-pause-val">${s.chatterbox_mtl_local_sentence_pause_ms ?? 500}</span></label>
+            <input type="range" id="s-sentence-pause" min="0" max="2000" step="50" value="${s.chatterbox_mtl_local_sentence_pause_ms ?? 500}"
+              oninput="document.getElementById('s-pause-val').textContent=parseInt(this.value)">
           </div>
 
           <div class="form-group">
@@ -194,6 +212,7 @@ const settingsModule = (() => {
       inter_chunk_silence_ms: parseInt(get('s-inter-silence').value),
       group_chunks_by_speaker: get('s-group-speakers').checked,
       cleanup_vram_after_job: get('s-cleanup-vram').checked,
+      num_workers: parseInt(get('s-num-workers').value),
       chatterbox_mtl_local_default_language: get('s-language').value,
       chatterbox_mtl_local_device: get('s-device').value,
       chatterbox_mtl_local_default_prompt: get('s-default-prompt').value,
@@ -203,6 +222,8 @@ const settingsModule = (() => {
       chatterbox_mtl_local_repetition_penalty: parseFloat(get('s-rep-penalty').value),
       chatterbox_mtl_local_cfg_weight: parseFloat(get('s-cfg-weight').value),
       chatterbox_mtl_local_exaggeration: parseFloat(get('s-exaggeration').value),
+      chatterbox_mtl_local_speed_factor: parseFloat(get('s-speed-factor').value),
+      chatterbox_mtl_local_sentence_pause_ms: parseInt(get('s-sentence-pause').value),
       chatterbox_mtl_local_norm_loudness: get('s-norm-loudness').checked,
       chatterbox_mtl_local_prompt_norm_loudness: get('s-prompt-norm').checked,
     };

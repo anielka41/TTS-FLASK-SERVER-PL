@@ -55,9 +55,22 @@ def init_db():
             tts_engine TEXT NOT NULL DEFAULT 'chatterbox_mtl_local',
             split_by_chapter INTEGER NOT NULL DEFAULT 0,
             chapters_json TEXT NOT NULL DEFAULT '[]',
+            worker_name TEXT,
+            completed_chapters INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             started_at TEXT,
             completed_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS job_chapters (
+            job_id TEXT NOT NULL,
+            chapter_index INTEGER NOT NULL,
+            worker_name TEXT NOT NULL DEFAULT '',
+            current_chunk INTEGER NOT NULL DEFAULT 0,
+            total_chunks INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'queued',
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (job_id, chapter_index)
         );
     """)
     conn.commit()
@@ -163,8 +176,8 @@ def db_create_job(
             output_format, output_bitrate_kbps,
             voice_assignments_json, output_files_json,
             tts_engine, split_by_chapter, chapters_json,
-            created_at
-        ) VALUES (?, ?, ?, 'queued', 0, 0, 0, 0, ?, ?, ?, ?, '[]', ?, ?, ?, ?)""",
+            completed_chapters, created_at
+        ) VALUES (?, ?, ?, 'queued', 0, 0, 0, 0, ?, ?, ?, ?, '[]', ?, ?, ?, 0, ?)""",
         (
             job_id, title, text,
             total_chapters,
@@ -178,6 +191,13 @@ def db_create_job(
     )
     conn.commit()
     return _row_to_job(conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone())
+
+def db_increment_completed_chapters(job_id: str) -> int:
+    conn = _get_conn()
+    conn.execute("UPDATE jobs SET completed_chapters = completed_chapters + 1 WHERE job_id = ?", (job_id,))
+    conn.commit()
+    row = conn.execute("SELECT completed_chapters FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+    return row["completed_chapters"] if row else 0
 
 
 def db_update_job(job_id: str, **kwargs):
@@ -241,3 +261,30 @@ def _row_to_job(row: sqlite3.Row) -> Dict[str, Any]:
     d["chapters"] = json.loads(d.pop("chapters_json", "[]"))
     d["split_by_chapter"] = bool(d.get("split_by_chapter", 0))
     return d
+
+
+# ============================================================
+# Chapter States
+# ============================================================
+
+def db_update_chapter_state(job_id: str, chapter_index: int, worker_name: str, current_chunk: int, total_chunks: int, status: str):
+    conn = _get_conn()
+    now = datetime.utcnow().isoformat()
+    conn.execute(
+        """INSERT INTO job_chapters (job_id, chapter_index, worker_name, current_chunk, total_chunks, status, updated_at) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(job_id, chapter_index) DO UPDATE SET 
+               worker_name=excluded.worker_name, 
+               current_chunk=excluded.current_chunk, 
+               total_chunks=excluded.total_chunks, 
+               status=excluded.status, 
+               updated_at=excluded.updated_at""",
+        (job_id, chapter_index, worker_name, current_chunk, total_chunks, status, now)
+    )
+    conn.commit()
+
+
+def db_get_chapter_states(job_id: str) -> List[Dict[str, Any]]:
+    conn = _get_conn()
+    rows = conn.execute("SELECT * FROM job_chapters WHERE job_id = ? ORDER BY chapter_index ASC", (job_id,)).fetchall()
+    return [dict(r) for r in rows]

@@ -37,7 +37,7 @@ const queueModule = (() => {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Tytuł</th>
+                <th>Nazwa projektu</th>
                 <th>Status</th>
                 <th>Postęp</th>
                 <th>Utworzono</th>
@@ -62,22 +62,59 @@ const queueModule = (() => {
       paused: 'Wstrzymano', cancelled: 'Anulowano'
     };
     const status = job.status || 'unknown';
-    const progress = job.progress || 0;
     const shortId = (job.job_id || '').slice(0, 8);
-    const title = escapeHtml(job.title || 'Bez tytułu');
+    const title = escapeHtml(job.title || 'Brak nazwy projektu');
     const created = formatDate(job.created_at);
+
+    // Calculate dynamic progress
+    let progress = job.progress || 0;
+    if (status === 'processing' || status === 'paused') {
+      const tch = job.total_chapters || 1;
+      const cc = job.completed_chapters || 0;
+      let runningFraction = 0;
+
+      if (job.chapter_states && job.chapter_states.length > 0) {
+        job.chapter_states.forEach(state => {
+          if (state.status === 'processing' && state.total_chunks > 0) {
+            runningFraction += (state.current_chunk / state.total_chunks);
+          }
+        });
+      }
+      progress = Math.min(99, Math.floor(((cc + runningFraction) / tch) * 100));
+    } else if (status === 'completed') {
+      progress = 100;
+    }
 
     // Chunk/chapter progress info
     const chunkInfo = (status === 'processing' || status === 'paused')
       ? (() => {
-        const cc = job.current_chunk || 0;
-        const tc = job.total_chunks || 0;
-        const cch = job.current_chapter || 0;
+        const cc = job.completed_chapters || 0;
         const tch = job.total_chapters || 0;
         let info = '';
-        if (tc > 0) info += `Chunk ${cc}/${tc}`;
-        if (tch > 1) info += ` · Rozdział ${cch}/${tch}`;
-        return info ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${info}</div>` : '';
+        if (tch > 1) {
+          info += `<div style="font-size:0.75rem;font-weight:600;color:var(--text);margin-bottom:4px">Ukończono rozdziałów: ${cc}/${tch}</div>`;
+        }
+
+        let statesHtml = '';
+        if (job.chapter_states && job.chapter_states.length > 0) {
+          const activeStates = job.chapter_states.filter(s => s.status === 'processing');
+          if (activeStates.length > 0) {
+            statesHtml = '<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">';
+            activeStates.forEach(s => {
+              const cidx = s.chapter_index + 1;
+              const wname = s.worker_name ? escapeHtml(s.worker_name.replace('chatterbox_workers_', 'Worker ')) : 'Worker';
+              const curr = s.current_chunk;
+              const tot = s.total_chunks;
+              statesHtml += `<div style="font-size:0.7rem;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+                        <span>⚙️</span>
+                        <span><b>${wname}</b>: Rozdział ${cidx}/${tch} | chunk ${curr}/${tot}</span>
+                    </div>`;
+            });
+            statesHtml += '</div>';
+          }
+        }
+
+        return info + statesHtml;
       })()
       : '';
 

@@ -27,7 +27,7 @@ import engine
 import database as db
 
 from flask_app.helpers import _load_voice_metadata, _save_voice_metadata, _list_voices, _analyze_text, _get_audio_duration
-from flask_app.worker import _process_job, job_flags, job_flags_lock, JOBS_DIR
+from flask_app.worker import _process_chapter, JOBS_DIR
 
 logger = logging.getLogger("flask_app.routes")
 
@@ -100,8 +100,10 @@ def api_generate():
         return jsonify({"success": False, "error": "Tekst jest pusty"}), 400
 
     job_id = str(uuid.uuid4())
-    first_line = (text or (chapters[0] if chapters else "")).split("\n")[0][:50].strip()
-    title = re.sub(r"\[\/?\w[\w-]*\]", "", first_line).strip() or "Bez tytułu"
+    title = data.get("title", "").strip()
+    if not title:
+        first_line = (text or (chapters[0] if chapters else "")).split("\n")[0][:50].strip()
+        title = re.sub(r"\[\/?\w[\w-]*\]", "", first_line).strip() or "Brak nazwy projektu"
 
     job = db.db_create_job(
         job_id=job_id,
@@ -116,13 +118,15 @@ def api_generate():
         total_chapters=len(chapters) if chapters else 1,
     )
 
-    # Set runtime flags
-    with job_flags_lock:
-        job_flags[job_id] = {"_cancel": False, "_paused": False}
+    from redis import Redis
+    from rq import Queue
+    import os
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    q = Queue('chapters', connection=Redis.from_url(redis_url))
 
-    # Start worker
-    t = threading.Thread(target=_process_job, args=(job_id,), daemon=True)
-    t.start()
+    # Send to RQ per chapter
+    for ch_idx in range(len(chapters) if chapters else 1):
+        q.enqueue("flask_app.worker._process_chapter", job_id, ch_idx, job_timeout=3600, result_ttl=86400)
 
     active = db.db_get_active_job_count()
     return jsonify({"success": True, "job_id": job_id, "queue_position": active})
@@ -145,10 +149,13 @@ def api_jobs():
             "total_chunks": j.get("total_chunks", 0),
             "current_chapter": j.get("current_chapter", 0),
             "total_chapters": j.get("total_chapters", 0),
+            "completed_chapters": j.get("completed_chapters", 0),
             "created_at": j["created_at"],
             "completed_at": j.get("completed_at"),
             "error": j.get("error"),
             "output_files": j.get("output_files", []),
+            "worker_name": j.get("worker_name"),
+            "chapter_states": db.db_get_chapter_states(j["job_id"]),
         })
     active = db.db_get_active_job_count()
     return jsonify({"success": True, "jobs": job_list, "active_count": active})
@@ -159,10 +166,7 @@ def api_pause_job(job_id: str):
     job = db.db_get_job(job_id)
     if not job:
         return jsonify({"success": False, "error": "Job nie znaleziony"}), 404
-    with job_flags_lock:
-        flags = job_flags.get(job_id, {})
-        flags["_paused"] = True
-        job_flags[job_id] = flags
+    db.db_update_job(job_id, status="paused")
     return jsonify({"success": True})
 
 
@@ -171,10 +175,7 @@ def api_resume_job(job_id: str):
     job = db.db_get_job(job_id)
     if not job:
         return jsonify({"success": False, "error": "Job nie znaleziony"}), 404
-    with job_flags_lock:
-        flags = job_flags.get(job_id, {})
-        flags["_paused"] = False
-        job_flags[job_id] = flags
+    db.db_update_job(job_id, status="processing")
     return jsonify({"success": True})
 
 
@@ -183,11 +184,7 @@ def api_cancel_job(job_id: str):
     job = db.db_get_job(job_id)
     if not job:
         return jsonify({"success": False, "error": "Job nie znaleziony"}), 404
-    with job_flags_lock:
-        flags = job_flags.get(job_id, {})
-        flags["_cancel"] = True
-        flags["_paused"] = False
-        job_flags[job_id] = flags
+    db.db_update_job(job_id, status="cancelled")
     return jsonify({"success": True})
 
 
@@ -197,11 +194,10 @@ def api_delete_job(job_id: str):
     if not deleted:
         return jsonify({"success": False, "error": "Job nie znaleziony"}), 404
     # Delete output files
+    from flask_app.worker import JOBS_DIR
     job_dir = JOBS_DIR / job_id
     if job_dir.exists():
         shutil.rmtree(job_dir, ignore_errors=True)
-    with job_flags_lock:
-        job_flags.pop(job_id, None)
     return jsonify({"success": True})
 
 
@@ -494,6 +490,10 @@ def api_convert():
 @api_bp.route("/settings", methods=["GET"])
 def api_settings_get():
     cfg = get_full_config_for_template()
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     settings = {
         "output_format": cfg.get("audio_output", {}).get("format", "wav"),
         "output_bitrate_kbps": 128,
@@ -510,7 +510,10 @@ def api_settings_get():
         "chatterbox_mtl_local_exaggeration": cfg.get("generation_defaults", {}).get("exaggeration", 0.5),
         "chatterbox_mtl_local_cfg_weight": cfg.get("generation_defaults", {}).get("cfg_weight", 0.5),
         "chatterbox_mtl_local_seed": cfg.get("generation_defaults", {}).get("seed", 0),
+        "chatterbox_mtl_local_speed_factor": cfg.get("generation_defaults", {}).get("speed_factor", 1.0),
+        "chatterbox_mtl_local_sentence_pause_ms": cfg.get("generation_defaults", {}).get("sentence_pause_ms", 500),
         "model_repo_id": cfg.get("model", {}).get("repo_id", "chatterbox-multilingual"),
+        "num_workers": int(os.environ.get("NUM_WORKERS", 1))
     }
     return jsonify({"success": True, "settings": settings})
 
@@ -551,6 +554,10 @@ def api_settings_save():
         gen["cfg_weight"] = float(data["chatterbox_mtl_local_cfg_weight"])
     if "chatterbox_mtl_local_seed" in data:
         gen["seed"] = int(data["chatterbox_mtl_local_seed"])
+    if "chatterbox_mtl_local_speed_factor" in data:
+        gen["speed_factor"] = float(data["chatterbox_mtl_local_speed_factor"])
+    if "chatterbox_mtl_local_sentence_pause_ms" in data:
+        gen["sentence_pause_ms"] = int(data["chatterbox_mtl_local_sentence_pause_ms"])
     if gen:
         update["generation_defaults"] = gen
 
@@ -567,14 +574,51 @@ def api_settings_save():
     if "model_repo_id" in data:
         update["model"] = {"repo_id": data["model_repo_id"]}
 
+    # Update env num_workers
+    worker_success_msg = ""
+    if "num_workers" in data:
+        new_workers = int(data["num_workers"])
+        import dotenv
+        from dotenv import find_dotenv
+        env_file = find_dotenv()
+        if not env_file:
+            env_file = os.path.join(FLASK_APP_DIR.parent, ".env")
+        dotenv.set_key(env_file, "NUM_WORKERS", str(new_workers))
+        os.environ["NUM_WORKERS"] = str(new_workers)
+        
+        # update supervisor if possible
+        import subprocess
+        try:
+            # First, update the number of processes in the supervisor target conf if it exists
+            conf_path = "/etc/supervisor/conf.d/chatterbox_workers.conf"
+            if os.path.exists(conf_path):
+                try:
+                    with open(conf_path, "r", encoding="utf-8") as f:
+                        lines = f.readlines()
+                    with open(conf_path, "w", encoding="utf-8") as f:
+                        for line in lines:
+                            if line.startswith("numprocs="):
+                                f.write(f"numprocs={new_workers}\n")
+                            else:
+                                f.write(line)
+                except PermissionError:
+                    worker_success_msg = " (nie udało się zapisać conf. Supervisora - brak zapisu)"
+                
+                # reread and update
+                subprocess.run(["sudo", "-n", "supervisorctl", "reread"], check=False)
+                subprocess.run(["sudo", "-n", "supervisorctl", "update", "chatterbox_workers"], check=False)
+        except Exception as e:
+            logger.warning(f"Could not update supervisor automatically: {e}")
+        worker_success_msg = f" (Workers = {new_workers})"
+
     if update:
         success = config_manager.update_and_save(update)
         if success:
-            return jsonify({"success": True, "message": "Ustawienia zapisane"})
+            return jsonify({"success": True, "message": f"Ustawienia zapisane{worker_success_msg}"})
         else:
             return jsonify({"success": False, "error": "Nie udało się zapisać ustawień"}), 500
 
-    return jsonify({"success": True, "message": "Brak zmian"})
+    return jsonify({"success": True, "message": f"Brak zmian config.yaml{worker_success_msg}"})
 
 
 # ============================================================
@@ -644,6 +688,35 @@ def api_upload_document():
 @main_bp.route("/outputs/<path:filepath>")
 def serve_output(filepath: str):
     return send_from_directory(str(JOBS_DIR), filepath)
+
+
+# ============================================================
+# Routes: System Status
+# ============================================================
+@api_bp.route("/system-status", methods=["GET"])
+def api_system_status():
+    status = {"redis": False, "supervisor": False, "workers": 0}
+    try:
+        from redis import Redis
+        import os
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        r = Redis.from_url(redis_url, socket_connect_timeout=1, socket_timeout=1)
+        status["redis"] = r.ping()
+    except Exception:
+        pass
+
+    try:
+        import subprocess
+        res = subprocess.run(["sudo", "-n", "supervisorctl", "status", "chatterbox_workers:"], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 or res.returncode == 3: # 3 can mean not all are running or just status output
+            status["supervisor"] = True
+            lines = res.stdout.strip().split('\n')
+            running_workers = sum(1 for line in lines if "RUNNING" in line or "STARTING" in line)
+            status["workers"] = running_workers
+    except Exception:
+        pass
+
+    return jsonify({"success": True, "status": status})
 
 
 # ============================================================

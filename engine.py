@@ -327,7 +327,17 @@ def load_model() -> bool:
                 )
 
             # Load the model using from_pretrained - handles HuggingFace downloads automatically
-            chatterbox_model = model_class.from_pretrained(device=model_device)
+            # Direct it to use the local model_cache directory if possible
+            model_cache_path = Path(config_manager.get_string("paths.model_cache", "./model_cache")).resolve()
+            
+            try:
+                chatterbox_model = model_class.from_pretrained(
+                    device=model_device, 
+                    cache_dir=str(model_cache_path)
+                )
+            except TypeError:
+                # Fallback if from_pretrained does not accept cache_dir
+                chatterbox_model = model_class.from_pretrained(device=model_device)
 
             # Store model metadata
             loaded_model_type = model_type

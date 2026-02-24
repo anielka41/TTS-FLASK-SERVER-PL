@@ -20,8 +20,8 @@ paths:
   output: outputs
 generation_defaults:
   temperature: 0.8
-  exaggeration: 0.0
-  cfg_weight: 0.0
+  exaggeration: 0.5
+  cfg_weight: 0.5
   seed: 0
   speed_factor: 1.0
   language: pl
@@ -37,7 +37,7 @@ audio_output:
   intro_silence_ms: 0
   inter_chunk_silence_ms: 0
   group_chunks_by_speaker: false
-  cleanup_vram_after_job: false
+  cleanup_vram_after_job: true
   norm_loudness: true
   prompt_norm_loudness: true
 ui_state:

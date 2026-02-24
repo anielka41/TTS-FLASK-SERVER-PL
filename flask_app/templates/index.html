@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatterbox Flask PL</title>
+  <meta name="description" content="Wielogłosowy TTS oparty na Chatterbox z polskim interfejsem">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+
+</head>
+
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="36" height="36" rx="10" fill="url(#g1)" />
+        <path d="M9 12h18M9 18h14M9 24h10" stroke="white" stroke-width="2.5" stroke-linecap="round" />
+        <circle cx="28" cy="24" r="5" fill="white" opacity="0.9" />
+        <path d="M26.5 24l1 1L30 22" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" />
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#6366f1" />
+            <stop offset="1" stop-color="#4f46e5" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div>
+        <h1>Chatterbox Flask PL</h1>
+        <div class="subtitle">Chatterbox TTS Server</div>
+      </div>
+    </div>
+
+    <div class="header-status">
+      <span id="status-dot" class="status-dot"></span>
+      <span id="status-text">Gotowy</span>
+      <span id="queue-count" style="display:none; color: var(--warning);">• <span id="queue-n">0</span> w kolejce</span>
+    </div>
+  </header>
+
+  <!-- Tab Navigation -->
+  <nav class="tabs-nav" id="tabs-nav">
+    <button class="tab-btn active" data-tab="generate">🎙️ Generuj</button>
+    <button class="tab-btn" data-tab="queue">📋 Kolejka <span class="tab-badge" id="queue-badge"
+        style="display:none">0</span></button>
+    <button class="tab-btn" data-tab="library">📚 Biblioteka</button>
+    <button class="tab-btn" data-tab="voices">🎤 Głosy</button>
+    <button class="tab-btn" data-tab="dictionary">📖 Słownik <span class="tab-badge" id="dict-badge"
+        style="display:none">0</span></button>
+    <button class="tab-btn" data-tab="converter">🔄 Konwerter</button>
+    <button class="tab-btn" data-tab="settings">⚙️ Ustawienia</button>
+    <button class="tab-btn" data-tab="help">❓ Pomoc</button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- ====== TAB: GENERUJ ====== -->
+    <div class="tab-pane active" id="tab-generate">
+      <div style="display:grid; grid-template-columns: 1fr 360px; gap: 20px;">
+
+        <!-- Left column -->
+        <div>
+          <!-- Text Input -->
+          <div class="card">
+            <div class="card-title"><span class="icon">📝</span> Tekst wejściowy</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px">
+              💡 Rozdzielaj rozdziały tagiem <code style="color:var(--accent-light)">{ROZDZIAL}</code> aby wygenerować
+              osobne pliki.
+            </div>
+            <div class="text-toolbar">
+              <button class="btn btn-secondary btn-sm" onclick="insertTag('narrator')">🗣 narrator</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertCustomTag()">➕ Mówca...</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertInlineTag('[sigh]')">😮‍💨</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertInlineTag('[laugh]')">😄</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertInlineTag('[cough]')">🤧</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertInlineTag('[pause]')">⏸</button>
+              <button class="btn btn-secondary btn-sm" onclick="insertRozdzial()" title="Wstaw {ROZDZIAL}">📖
+                Rozdział</button>
+              <span style="flex:1"></span>
+              <button class="btn btn-secondary btn-sm" id="upload-doc-btn"
+                onclick="document.getElementById('doc-upload-input').click()">📎 Wgraj plik</button>
+              <input type="file" id="doc-upload-input" accept=".txt,.pdf,.docx,.epub,.md,.html,.odt"
+                style="display:none">
+            </div>
+            <textarea id="text-input"
+              placeholder="Wpisz lub wklej tekst... Użyj tagów [narrator]...[/narrator] dla mówców."></textarea>
+            <div class="mt-2 flex gap-2">
+              <button class="btn btn-secondary" id="analyze-btn" onclick="analyzeText()">🔍 Analizuj</button>
+              <button class="btn btn-secondary btn-sm" onclick="importChapters()">📥 Importuj rozdziały</button>
+              <button class="btn btn-secondary btn-sm" onclick="clearText()">🗑 Wyczyść</button>
+            </div>
+          </div>
+
+          <!-- Chapters Repeater -->
+          <div id="chapters-repeater" style="display:none; margin-bottom:16px">
+            <div class="card">
+              <div class="card-title"><span class="icon">📚</span> Rozdziały <span id="chapters-count-badge"
+                  class="tab-badge" style="margin-left:6px">0</span></div>
+              <div id="chapters-list"></div>
+              <div class="mt-2 flex gap-2">
+                <button class="btn btn-danger btn-sm" onclick="clearChapters()">🗑 Wyczyść rozdziały</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats-bar" id="stats-bar" style="margin-bottom:16px;">
+            <div class="stat-item">👤 Mówcy: <span class="stat-value" id="stat-speakers">-</span></div>
+            <div class="stat-item">📦 Fragmenty: <span class="stat-value" id="stat-chunks">-</span></div>
+            <div class="stat-item">💬 Słowa: <span class="stat-value" id="stat-words">-</span></div>
+            <div class="stat-item">⏱ ~Czas: <span class="stat-value" id="stat-duration">-</span></div>
+            <div class="stat-item" id="stat-chapters-container" style="display:none">📚 Rozdziały: <span
+                class="stat-value" id="stat-chapters">-</span></div>
+          </div>
+
+          <!-- Voice Assignments -->
+          <div class="card" id="voice-assignments-card" style="display:none">
+            <div class="card-title"><span class="icon">🎤</span> Przypisanie głosów</div>
+            <div style="overflow-x:auto">
+              <table class="voice-table" id="voice-assignments-table">
+                <thead>
+                  <tr>
+                    <th>Głośnik</th>
+                    <th>Prompt głosowy</th>
+                    <th>Efekty FX</th>
+                    <th>Podgląd</th>
+                  </tr>
+                </thead>
+                <tbody id="voice-assignments-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: Options -->
+        <div>
+          <div class="card">
+            <div class="card-title"><span class="icon">⚙️</span> Opcje generowania</div>
+
+            <div class="form-group">
+              <label>Silnik TTS</label>
+              <select id="model-select">
+                <option value="chatterbox-multilingual">🌍 Multilingual</option>
+                <option value="chatterbox-turbo">⚡ Turbo</option>
+                <option value="chatterbox">🔊 Original</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <button class="btn btn-secondary btn-sm" id="model-reload-btn" onclick="changeModel()"
+                style="width:100%">🔄 Przeładuj model</button>
+              <div id="model-status-text"
+                style="font-size:0.75rem; color:var(--text-muted); margin-top:4px; text-align:center"></div>
+            </div>
+
+            <div class="form-group">
+              <label>Format wyjściowy</label>
+              <select id="opt-format">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV (bezstratny)</option>
+                <option value="ogg">OGG</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="bitrate-group">
+              <label>Bitrate MP3 (kbps)</label>
+              <select id="opt-bitrate">
+                <option value="64">64 kbps</option>
+                <option value="96">96 kbps</option>
+                <option value="128" selected>128 kbps</option>
+                <option value="160">160 kbps</option>
+                <option value="192">192 kbps</option>
+                <option value="224">224 kbps</option>
+                <option value="256">256 kbps</option>
+              </select>
+            </div>
+
+            <div class="divider"></div>
+
+            <button class="btn btn-primary btn-lg" id="generate-btn" onclick="generateAudio()" style="width:100%">
+              🚀 Generuj audio
+            </button>
+
+            <div id="generate-status"
+              style="display:none; margin-top:12px; text-align:center; color:var(--text-secondary); font-size:0.85rem">
+            </div>
+          </div>
+
+          <!-- Quick Help -->
+          <div class="card" style="font-size:0.82rem; color:var(--text-muted)">
+            <div class="card-title" style="font-size:0.85rem">💡 Szybka pomoc</div>
+            <p><strong>[narrator]</strong>Tekst narracyjny<strong>[/narrator]</strong></p>
+            <p class="mt-2"><strong>[postac]</strong>Dialog postaci<strong>[/postac]</strong></p>
+            <p class="mt-2">Min. 5 sekund na prompt głosowy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: KOLEJKA ====== -->
+    <div class="tab-pane" id="tab-queue">
+      <div class="section-header">
+        <div class="section-title">📋 Kolejka zadań</div>
+        <button class="btn btn-secondary btn-sm" onclick="queueModule.refresh()">🔄 Odśwież</button>
+      </div>
+      <div class="card">
+        <div id="queue-container">
+          <div class="queue-empty">Trwa ładowanie...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: BIBLIOTEKA ====== -->
+    <div class="tab-pane" id="tab-library">
+      <div class="section-header">
+        <div class="section-title">📚 Biblioteka nagrań</div>
+        <button class="btn btn-secondary btn-sm" onclick="libraryModule.refresh()">🔄 Odśwież</button>
+      </div>
+      <div id="library-container">
+        <div class="queue-empty">Trwa ładowanie biblioteki...</div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: GŁOSY ====== -->
+    <div class="tab-pane" id="tab-voices">
+      <div class="section-header">
+        <div class="section-title">🎤 Prompty głosowe Chatterbox</div>
+        <button class="btn btn-primary btn-sm" onclick="voiceManager.openUploadModal()">➕ Dodaj prompt</button>
+      </div>
+
+      <div class="card">
+        <div class="voice-list" id="voices-list-container">
+          <div class="queue-empty">Trwa ładowanie...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">ℹ️</span> Informacje o promptach</div>
+        <p style="font-size:0.875rem; color:var(--text-secondary)">
+          Chatterbox klonuje głos z nagrania referencyjnego.<br>
+          <strong>Wymagania:</strong> min. 5 sekund wyraźnej mowy, format WAV lub MP3.<br>
+          Lepszy prompt = lepsze klonowanie głosu.
+        </p>
+      </div>
+    </div>
+
+    <!-- ====== TAB: SŁOWNIK ====== -->
+    <div class="tab-pane" id="tab-dictionary">
+      <div class="section-header">
+        <div class="section-title">📖 Słownik zamian</div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary btn-sm" onclick="dictionaryImport()">⬆️ Import JSON</button>
+          <button class="btn btn-secondary btn-sm" onclick="dictionaryExport()">⬇️ Eksport JSON</button>
+          <button class="btn btn-danger btn-sm" onclick="dictionaryClear()">🗑 Wyczyść</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="dict-form">
+          <div class="form-group" style="margin:0">
+            <label>Słowo/fraza</label>
+            <input type="text" id="dict-word" placeholder="np. CPU">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Zamiennik</label>
+            <input type="text" id="dict-replacement" placeholder="np. procesor">
+          </div>
+          <button class="btn btn-primary" onclick="dictionaryAdd()" style="align-self:flex-end">Dodaj</button>
+        </div>
+        <div class="form-group" style="margin:0 0 12px 0">
+          <input type="text" id="dict-search" placeholder="🔍 Szukaj w słowniku..."
+            oninput="filterDictionary(this.value)">
+        </div>
+        <div id="dictionary-list">Trwa ładowanie...</div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: KONWERTER (Text through Dictionary) ====== -->
+    <div class="tab-pane" id="tab-converter">
+      <div class="section-title" style="margin-bottom:16px">🔄 Konwerter tekstu (Słownik)</div>
+      <div style="max-width:800px">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">📝 Tekst oryginalny</div>
+          <textarea id="converter-input-text" style="min-height:200px; width:100%"
+            placeholder="Wklej tekst do przetworzenia..."></textarea>
+        </div>
+        <div style="margin-bottom:16px">
+          <button class="btn btn-primary" onclick="convertText()">🔄 Przetworz przez słownik</button>
+        </div>
+        <div class="card">
+          <div class="card-title">✅ Tekst po zamianie</div>
+          <textarea id="converter-output-text" style="min-height:200px; width:100%" readonly
+            placeholder="Wynik pojawi się tutaj..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: USTAWIENIA ====== -->
+    <div class="tab-pane" id="tab-settings">
+      <div class="section-title" style="margin-bottom:16px">⚙️ Ustawienia aplikacji</div>
+      <div id="settings-container">Trwa ładowanie...</div>
+    </div>
+
+    <!-- ====== TAB: POMOC ====== -->
+    <div class="tab-pane" id="tab-help">
+      <div class="section-title" style="margin-bottom:16px">❓ Pomoc</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px">
+        <div class="card">
+          <div class="card-title">🏷️ Tagi mówców</div>
+          <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:12px">
+            Użyj tagów XML do oznaczania segmentów tekstu dla różnych mówców:
+          </p>
+          <pre
+            style="background:var(--bg-primary); padding:12px; border-radius:8px; font-size:0.8rem; overflow-x:auto; color:var(--accent-light)">[narrator]To mówi narrator.[/narrator]
+[alice]A to mówi Alice.[/alice]
+[bob]Ja jestem Bob![/bob]</pre>
+        </div>
+        <div class="card">
+          <div class="card-title">🎤 Prompty głosowe</div>
+          <p style="font-size:0.875rem; color:var(--text-secondary)">
+            Chatterbox klonuje głos z nagrania referencyjnego.<br><br>
+            <strong>Wymagania:</strong><br>
+            • Minimum 5 sekund czystej mowy<br>
+            • Dobra jakość nagrania (brak szumów)<br>
+            • Format: WAV, MP3<br><br>
+            Wgraj prompty w zakładce <strong>Głosy</strong>.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-title">🚀 Podstawowy workflow</div>
+          <ol style="font-size:0.875rem; color:var(--text-secondary); padding-left:20px; line-height:2">
+            <li>Wpisz tekst z tagami mówców</li>
+            <li>Kliknij <strong>Analizuj</strong> aby sprawdzić statystyki</li>
+            <li>Przypisz głosy do mówców</li>
+            <li>Kliknij <strong>Generuj audio</strong></li>
+            <li>Śledź postęp w <strong>Kolejce</strong></li>
+            <li>Pobierz nagranie z <strong>Biblioteki</strong></li>
+          </ol>
+        </div>
+        <div class="card">
+          <div class="card-title">🔧 Tagi paralingwistyczne</div>
+          <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:12px">
+            Wstawiaj tagi emocjonalne/paralingwistyczne w tekście:
+          </p>
+          <table style="font-size:0.82rem; width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="padding:4px 8px; color:var(--accent-light)">[sigh]</td>
+              <td style="padding:4px; color:var(--text-muted)">Westchnienie</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px; color:var(--accent-light)">[laugh]</td>
+              <td style="padding:4px; color:var(--text-muted)">Śmiech</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px; color:var(--accent-light)">[cough]</td>
+              <td style="padding:4px; color:var(--text-muted)">Chrząknięcie</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px; color:var(--accent-light)">[pause]</td>
+              <td style="padding:4px; color:var(--text-muted)">Krótka pauza</td>
+            </tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">💻 Wymagania sprzętowe</div>
+          <p style="font-size:0.875rem; color:var(--text-secondary)">
+            <strong>GPU (zalecane):</strong> NVIDIA CUDA<br>
+            <strong>RAM:</strong> min. 8 GB (16 GB zalecane)<br>
+            <strong>VRAM:</strong> min. 8 GB (GPU)<br>
+            <strong>CPU:</strong> Możliwe, ale wolne<br><br>
+            Ustaw <code style="color:var(--accent-light)">device: auto</code> w Ustawieniach - automatycznie wybierze
+            GPU jeśli dostępne.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-title">🔑 HuggingFace Token</div>
+          <p style="font-size:0.875rem; color:var(--text-secondary)">
+            Model Chatterbox jest publiczny i nie wymaga tokenu.<br><br>
+            Jeśli jednak wystąpią problemy z pobraniem, ustaw zmienną środowiskową:<br><br>
+            <code style="color:var(--accent-light)">HF_TOKEN=hf_xxxx</code><br><br>
+            w pliku <code style="color:var(--accent-light)">.env</code> w katalogu projektu.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Upload Voice Modal -->
+  <div class="modal-overlay" id="upload-voice-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">🎤 Dodaj prompt głosowy</div>
+        <button class="modal-close" onclick="voiceManager.closeUploadModal()">✕</button>
+      </div>
+      <div class="drop-zone" id="voice-drop-zone" onclick="document.getElementById('voice-file-input').click()">
+        <span class="drop-icon">🎵</span>
+        Przeciągnij plik audio lub kliknij aby wybrać<br>
+        <small style="color:var(--text-muted)">Min. 5 sekund · WAV, MP3</small>
+      </div>
+      <input type="file" id="voice-file-input" accept="audio/*" style="display:none">
+      <div id="voice-drop-info"
+        style="display:none; padding:10px; background:var(--bg-primary); border-radius:8px; font-size:0.875rem; margin-top:8px">
+      </div>
+
+      <div class="form-group mt-3">
+        <label>Nazwa głosu *</label>
+        <input type="text" id="voice-name-input" placeholder="np. Lektor A, Kobieta 1...">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Płeć</label>
+          <select id="voice-gender-input">
+            <option value="unknown">Nieznane</option>
+            <option value="female">Kobieta</option>
+            <option value="male">Mężczyzna</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Język</label>
+          <select id="voice-language-input">
+            <option value="pl">Polski</option>
+            <option value="en">Angielski</option>
+            <option value="de">Niemiecki</option>
+            <option value="fr">Francuski</option>
+            <option value="other">Inny</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Opis (opcjonalnie)</label>
+        <input type="text" id="voice-description-input" placeholder="np. ciepły, spokojny głos męski">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="voiceManager.closeUploadModal()">Anuluj</button>
+        <button class="btn btn-primary" id="upload-voice-btn" onclick="voiceManager.uploadVoice()">📤 Wgraj
+          prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/queue.js"></script>
+  <script src="/static/js/library.js"></script>
+  <script src="/static/js/settings.js"></script>
+  <script src="/static/js/voice-manager.js"></script>
+
+</body>
+
+</html>

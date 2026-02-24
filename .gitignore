@@ -9,6 +9,8 @@ __pycache__/
 .dist/
 dist/
 build/
+DEMO
+DEMO/
 *.egg-info/
 
 # Ignore IDE/Editor specific files

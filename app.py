@@ -280,6 +280,11 @@ def _process_job(job_id: str):
                 audio_prompt = va.get("audio_prompt_path", va.get("voice", None))
                 lang_code = va.get("lang_code", get_gen_default_language())
 
+                # Fallback to default voice if none provided
+                if not audio_prompt:
+                    from config import get_default_voice_id
+                    audio_prompt = get_default_voice_id()
+
                 prompt_path = None
                 if audio_prompt:
                     ref_dir = get_reference_audio_path(ensure_absolute=True)
@@ -708,6 +713,10 @@ def api_preview():
     voice = data.get("voice", "")
     text = data.get("text", "Witaj, to jest próbka głosu.")
     lang_code = data.get("lang_code", get_gen_default_language())
+
+    if not voice:
+        from config import get_default_voice_id
+        voice = get_default_voice_id()
 
     prompt_path = None
     if voice:

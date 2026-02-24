@@ -20,6 +20,4 @@
   <img src="static/screenshot-l.png" alt="Chatterbox TTS Server Web UI - Light Mode" width="33%" />
 </div>
 
-
 ---
-

@@ -12,7 +12,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-DB_PATH = Path(__file__).parent / "chatterbox.db"
+DB_DIR = Path(__file__).parent / "data"
+DB_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DB_DIR / "chatterbox.db"
 _local = threading.local()
 
 

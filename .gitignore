@@ -48,3 +48,9 @@ htmlcov/
 
 # Ignore log files
 *.log
+
+# Database and metadata
+*.db
+*.db-*
+voice_metadata.json
+data/

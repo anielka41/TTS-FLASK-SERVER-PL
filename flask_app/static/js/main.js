@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFormatToggle();
   setupDocUpload();
   startStatusPolling();
+  startSystemStatusPolling();
   loadModelInfo();
   loadDictionaryBadge();
   setupLiveStats();
@@ -283,6 +284,7 @@ async function previewVoice(speaker) {
 // ===== Generate =====
 async function generateAudio() {
   const text = document.getElementById('text-input').value.trim();
+  const projectTitle = document.getElementById('project-title').value.trim();
   // Check if chapters exist
   const chaptersRepeater = document.getElementById('chapters-repeater');
   const hasChapters = chaptersRepeater && chaptersRepeater.style.display !== 'none';
@@ -318,6 +320,7 @@ async function generateAudio() {
   try {
     const body = {
       text: hasChapters ? '' : text,
+      title: projectTitle,
       voice_assignments: finalAssignments,
       output_format,
       output_bitrate_kbps,
@@ -682,6 +685,47 @@ function startStatusPolling() {
       }
     } catch (e) { /* ignore */ }
   }, 3000);
+}
+
+// ===== System Status polling =====
+function startSystemStatusPolling() {
+  const fetchStatus = async () => {
+    try {
+      const resp = await fetch('/api/system-status');
+      const data = await resp.json();
+      if (data.success && data.status) {
+        const rEl = document.getElementById('sys-redis');
+        const sEl = document.getElementById('sys-supervisor');
+        const wEl = document.getElementById('sys-workers');
+        const vEl = document.getElementById('sys-vram');
+
+        if (data.status.redis) {
+          rEl.innerHTML = '<span class="sys-dot sys-on">●</span> Redis: OK';
+        } else {
+          rEl.innerHTML = '<span class="sys-dot sys-off">●</span> Redis: Błąd';
+        }
+
+        if (data.status.supervisor) {
+          sEl.innerHTML = '<span class="sys-dot sys-on">●</span> Supervisor: OK';
+        } else {
+          sEl.innerHTML = '<span class="sys-dot sys-off">●</span> Supervisor: Błąd';
+        }
+
+        wEl.innerHTML = `🛠 Workery: ${data.status.workers}`;
+
+        if (data.status.vram_total > 0 && vEl) {
+          const totalGB = (data.status.vram_total / (1024 * 1024 * 1024)).toFixed(1);
+          const freeGB = (data.status.vram_free / (1024 * 1024 * 1024)).toFixed(1);
+          const usedGB = (totalGB - freeGB).toFixed(1);
+          vEl.innerHTML = `💾 VRAM: ${usedGB}GB / ${totalGB}GB`;
+          vEl.style.display = 'block';
+        }
+      }
+    } catch (e) { /* ignore */ }
+  };
+
+  fetchStatus(); // fetch immediately
+  setInterval(fetchStatus, 5000);
 }
 
 // ===== Toast notifications =====

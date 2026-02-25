@@ -19,11 +19,12 @@ paths:
   model_cache: model_cache
   output: outputs
 generation_defaults:
-  temperature: 0.8
+  temperature: 0.6
   exaggeration: 0.5
   cfg_weight: 0.5
   seed: 0
   speed_factor: 1.0
+  sentence_pause_ms: 250
   language: pl
   chunk_size: 200
   top_p: 0.95
@@ -46,8 +47,10 @@ ui_state:
   last_predefined_voice: Emily.wav
   last_reference_file: Kustosz.wav
   last_seed: 3000
-  last_chunk_size: 240
+  last_chunk_size: 220
   last_split_text_enabled: true
+  last_speed_factor: 1.0
+  last_sentence_pause_ms: 500
   hide_chunk_warning: false
   hide_generation_warning: true
   theme: light

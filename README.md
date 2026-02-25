@@ -21,3 +21,33 @@
 </div>
 
 ---
+
+## Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/devnen/Chatterbox-TTS-Server.git
+   cd Chatterbox-TTS-Server
+   ```
+
+2. **Create a virtual environment (optional but recommended):**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install PyTorch:**
+   Please ensure you install the compatible PyTorch version with the correct extra-index-url:
+   ```bash
+   pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/test/cu128
+   ```
+
+4. **Install remaining requirements:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Run the server:**
+   ```bash
+   python app.py
+   ```

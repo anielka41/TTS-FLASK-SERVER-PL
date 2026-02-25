@@ -51,15 +51,21 @@ a:hover { color: var(--accent); }
 .app-header {
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
   border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
   height: 64px;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+}
+
+.app-header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
 }
 
 .app-logo {

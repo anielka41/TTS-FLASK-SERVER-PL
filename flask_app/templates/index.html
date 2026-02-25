@@ -15,45 +15,51 @@
 
   <!-- Header -->
   <header class="app-header">
-    <div class="app-logo">
-      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="36" height="36" rx="10" fill="url(#g1)" />
-        <path d="M9 12h18M9 18h14M9 24h10" stroke="white" stroke-width="2.5" stroke-linecap="round" />
-        <circle cx="28" cy="24" r="5" fill="white" opacity="0.9" />
-        <path d="M26.5 24l1 1L30 22" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" />
-        <defs>
-          <linearGradient id="g1" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#6366f1" />
-            <stop offset="1" stop-color="#4f46e5" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div>
-        <h1>Chatterbox Flask PL</h1>
-        <div class="subtitle">Chatterbox TTS Server</div>
+    <div class="app-header-container">
+      <div class="app-logo">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="36" height="36" rx="10" fill="url(#g1)" />
+          <path d="M9 12h18M9 18h14M9 24h10" stroke="white" stroke-width="2.5" stroke-linecap="round" />
+          <circle cx="28" cy="24" r="5" fill="white" opacity="0.9" />
+          <path d="M26.5 24l1 1L30 22" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" />
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6366f1" />
+              <stop offset="1" stop-color="#4f46e5" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div>
+          <h1>Chatterbox Flask PL</h1>
+          <div class="subtitle">Chatterbox TTS Server</div>
+        </div>
       </div>
-    </div>
 
-    <div class="header-status">
-      <span id="status-dot" class="status-dot"></span>
-      <span id="status-text">Gotowy</span>
-      <span id="queue-count" style="display:none; color: var(--warning);">• <span id="queue-n">0</span> w kolejce</span>
+      <div class="header-status">
+        <span id="status-dot" class="status-dot"></span>
+        <span id="status-text">Gotowy</span>
+        <span id="queue-count" style="display:none; color: var(--warning);">• <span id="queue-n">0</span> w
+          kolejce</span>
+      </div>
     </div>
   </header>
 
   <!-- Tab Navigation -->
-  <nav class="tabs-nav" id="tabs-nav">
-    <button class="tab-btn active" data-tab="generate">🎙️ Generuj</button>
-    <button class="tab-btn" data-tab="queue">📋 Kolejka <span class="tab-badge" id="queue-badge"
-        style="display:none">0</span></button>
-    <button class="tab-btn" data-tab="library">📚 Biblioteka</button>
-    <button class="tab-btn" data-tab="voices">🎤 Głosy</button>
-    <button class="tab-btn" data-tab="dictionary">📖 Słownik <span class="tab-badge" id="dict-badge"
-        style="display:none">0</span></button>
-    <button class="tab-btn" data-tab="converter">🔄 Konwerter</button>
-    <button class="tab-btn" data-tab="settings">⚙️ Ustawienia</button>
-    <button class="tab-btn" data-tab="help">❓ Pomoc</button>
-  </nav>
+  <div class="tabs-wrapper" style="background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+    <nav class="tabs-nav" id="tabs-nav"
+      style="max-width: 1400px; margin: 0 auto; padding: 0 24px; border-bottom: none; background: transparent;">
+      <button class="tab-btn active" data-tab="generate">🎙️ Generuj</button>
+      <button class="tab-btn" data-tab="queue">📋 Kolejka <span class="tab-badge" id="queue-badge"
+          style="display:none">0</span></button>
+      <button class="tab-btn" data-tab="library">📚 Biblioteka</button>
+      <button class="tab-btn" data-tab="voices">🎤 Głosy</button>
+      <button class="tab-btn" data-tab="dictionary">📖 Słownik <span class="tab-badge" id="dict-badge"
+          style="display:none">0</span></button>
+      <button class="tab-btn" data-tab="converter">🔄 Konwerter</button>
+      <button class="tab-btn" data-tab="settings">⚙️ Ustawienia</button>
+      <button class="tab-btn" data-tab="help">❓ Pomoc</button>
+    </nav>
+  </div>
 
   <!-- Main Content -->
   <main class="main-content">
@@ -140,6 +146,12 @@
         <div>
           <div class="card">
             <div class="card-title"><span class="icon">⚙️</span> Opcje generowania</div>
+
+            <div class="form-group">
+              <label>Nazwa projektu</label>
+              <input type="text" id="project-title" placeholder="Opcjonalna nazwa..."
+                style="width:100%; padding:0.4rem; border:1px solid var(--border); border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);">
+            </div>
 
             <div class="form-group">
               <label>Silnik TTS</label>
@@ -444,6 +456,32 @@
 
   <!-- Toast container -->
   <div id="toast-container"></div>
+
+  <div class="system-status-footer"
+    style="padding: 6px 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); position: fixed; bottom: 0; left: 0; right: 0; font-size: 0.75rem; display: flex; justify-content: center; gap: 24px; z-index: 1000; color: var(--text-muted);">
+    <div id="sys-redis" title="Połączenie z bazą klucz-wartość (kolejka zadań)"><span class="sys-dot sys-off"
+        style="color:var(--error)">●</span> Redis: Ładowanie...</div>
+    <div id="sys-supervisor" title="Demon zarządzający serwerami TTS"><span class="sys-dot sys-off"
+        style="color:var(--error)">●</span> Supervisor: Ładowanie...</div>
+    <div id="sys-workers" title="Liczba pracujących procesów generacji">🛠 Workery: ?</div>
+    <div id="sys-vram" title="Zajętość i dostępność pamięci VRAM na GPU" style="display:none">💾 VRAM: Ładowanie...
+    </div>
+  </div>
+  <style>
+    body {
+      padding-bottom: 30px;
+    }
+
+    /* Miejsce na stopkę */
+    .sys-on {
+      color: var(--success) !important;
+      text-shadow: 0 0 5px var(--success);
+    }
+
+    .sys-off {
+      color: var(--error) !important;
+    }
+  </style>
 
   <!-- Scripts -->
   <script src="/static/js/main.js"></script>

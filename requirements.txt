@@ -52,6 +52,11 @@ unidecode                     # Unicode text transliteration
 inflect                       # Natural language inflection
 tqdm                          # Progress bars for loops
 
+# --- Background Jobs & Queue ---
+redis                         # Redis client
+rq                            # Background task queue
+python-dotenv                 # Configuration management
+
 # ============================================================================
 # INSTALLATION NOTES:
 # 

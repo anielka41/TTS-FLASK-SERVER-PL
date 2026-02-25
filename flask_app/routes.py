@@ -695,7 +695,7 @@ def serve_output(filepath: str):
 # ============================================================
 @api_bp.route("/system-status", methods=["GET"])
 def api_system_status():
-    status = {"redis": False, "supervisor": False, "workers": 0}
+    status = {"redis": False, "supervisor": False, "workers": 0, "vram_free": 0, "vram_total": 0}
     try:
         from redis import Redis
         import os
@@ -713,6 +713,15 @@ def api_system_status():
             lines = res.stdout.strip().split('\n')
             running_workers = sum(1 for line in lines if "RUNNING" in line or "STARTING" in line)
             status["workers"] = running_workers
+    except Exception:
+        pass
+
+    try:
+        import torch
+        if torch.cuda.is_available():
+            free, total = torch.cuda.mem_get_info()
+            status["vram_free"] = free
+            status["vram_total"] = total
     except Exception:
         pass
 

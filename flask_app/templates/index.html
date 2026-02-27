@@ -148,6 +148,19 @@
           <div class="card">
             <div class="card-title"><span class="icon">⚙️</span> Opcje generowania</div>
 
+            <div class="form-group" style="background:var(--bg-secondary); padding:10px; border-radius:8px; margin-bottom:12px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 0;">
+                <input type="checkbox" id="use-custom-voice-cb" onchange="toggleCustomVoiceSelect()">
+                <span style="font-weight:bold; color:var(--text-primary);">Użyj innego głosu (Nadpisanie)</span>
+              </label>
+              <select id="custom-voice-select" style="display: none; margin-top: 10px; width: 100%;">
+                <option value="">— Wybierz nadpisujący głos —</option>
+              </select>
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+                Domyślnie używany jest głos zdefiniowany w "Ustawieniach". Zaznacz tę modyfikację, jeśli chcesz użyć na sztywno głosu z biblioteki dla obecnego tekstu.
+              </div>
+            </div>
+
             <div class="form-group">
               <label>Nazwa projektu</label>
               <input type="text" id="project-title" placeholder="Opcjonalna nazwa..."

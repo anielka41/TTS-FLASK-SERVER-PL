@@ -329,12 +329,27 @@ async function generateAudio() {
     document.getElementById("opt-bitrate").value,
   );
 
+  // Create global override voice option
+  const overrideCb = document.getElementById("use-custom-voice-cb");
+  const overrideSel = document.getElementById("custom-voice-select");
+  let globalOverrideVoice = null;
+  if (overrideCb && overrideCb.checked && overrideSel && overrideSel.value) {
+    globalOverrideVoice = overrideSel.value;
+  }
+
   // Build final voice assignments
   const finalAssignments = {};
   currentSpeakers.forEach((speaker) => {
     finalAssignments[speaker] = voiceAssignments[speaker] || {};
-    if (!finalAssignments[speaker].lang_code)
+    if (!finalAssignments[speaker].lang_code) {
       finalAssignments[speaker].lang_code = "pl";
+    }
+    
+    // Apply global override if selected
+    if (globalOverrideVoice) {
+      finalAssignments[speaker].audio_prompt_path = globalOverrideVoice;
+      finalAssignments[speaker].voice = globalOverrideVoice;
+    }
   });
 
   // Collect chapters from repeater if available
@@ -388,11 +403,51 @@ async function generateAudio() {
 }
 
 // ===== Voices for assignments =====
+function toggleCustomVoiceSelect() {
+  const cb = document.getElementById("use-custom-voice-cb");
+  const sel = document.getElementById("custom-voice-select");
+  if (cb && sel) {
+    sel.style.display = cb.checked ? "block" : "none";
+  }
+}
+
 async function loadVoicesForAssignments() {
   try {
     const resp = await fetch("/api/chatterbox-voices");
     const data = await resp.json();
-    if (data.success) currentVoices = data.voices || [];
+    if (data.success) {
+      currentVoices = data.voices || [];
+      const predefined = data.predefined_voices || [];
+      
+      const sel = document.getElementById("custom-voice-select");
+      if (sel) {
+        sel.innerHTML = '<option value="">— Wybierz głos —</option>';
+        
+        if (currentVoices.length > 0) {
+          const optg = document.createElement("optgroup");
+          optg.label = "Moje głosy (Dodane)";
+          currentVoices.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v.file_name;
+            opt.textContent = `${v.name} (${v.duration_seconds}s)`;
+            optg.appendChild(opt);
+          });
+          sel.appendChild(optg);
+        }
+        
+        if (predefined.length > 0) {
+          const optg2 = document.createElement("optgroup");
+          optg2.label = "Domyślne głosy Chatterbox";
+          predefined.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v.file_name;
+            opt.textContent = `${v.name} (${v.duration_seconds}s)`;
+            optg2.appendChild(opt);
+          });
+          sel.appendChild(optg2);
+        }
+      }
+    }
   } catch (e) {
     console.error("Błąd ładowania głosów:", e);
   }

@@ -26,7 +26,7 @@ import torch
 import engine
 import database as db
 
-from flask_app.helpers import _load_voice_metadata, _save_voice_metadata, _list_voices, _analyze_text, _get_audio_duration
+from flask_app.helpers import _load_voice_metadata, _save_voice_metadata, _list_voices, _list_predefined_voices, _analyze_text, _get_audio_duration
 from flask_app.worker import _process_chapter, JOBS_DIR
 
 logger = logging.getLogger("flask_app.routes")
@@ -272,7 +272,8 @@ def api_library_update_title(job_id: str):
 @api_bp.route("/chatterbox-voices", methods=["GET"])
 def api_voices_list():
     voices = _list_voices()
-    return jsonify({"success": True, "voices": voices})
+    predefined_voices = _list_predefined_voices()
+    return jsonify({"success": True, "voices": voices, "predefined_voices": predefined_voices})
 
 
 @api_bp.route("/chatterbox-voices", methods=["POST"])

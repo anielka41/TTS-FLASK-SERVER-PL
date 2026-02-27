@@ -37,12 +37,16 @@ def _get_audio_duration(filepath: Path) -> float:
         return 0.0
 
 
-def _list_voices() -> List[Dict[str, Any]]:
-    ref_path = get_reference_audio_path(ensure_absolute=True)
-    ref_path.mkdir(parents=True, exist_ok=True)
+from config import get_reference_audio_path, get_predefined_voices_path
+
+def _list_voices(base_path: Optional[Path] = None, voice_type: str = "custom") -> List[Dict[str, Any]]:
+    if base_path is None:
+        base_path = get_reference_audio_path(ensure_absolute=True)
+    base_path.mkdir(parents=True, exist_ok=True)
+    
     meta = _load_voice_metadata()
     voices = []
-    for f in sorted(ref_path.iterdir()):
+    for f in sorted(base_path.iterdir()):
         if f.suffix.lower() in (".wav", ".mp3"):
             vm = meta.get(f.name, {})
             dur = _get_audio_duration(f)
@@ -55,8 +59,13 @@ def _list_voices() -> List[Dict[str, Any]]:
                 "description": vm.get("description", ""),
                 "duration_seconds": dur,
                 "is_valid_prompt": dur >= 5.0,
+                "type": voice_type,
             })
     return voices
+
+def _list_predefined_voices() -> List[Dict[str, Any]]:
+    pred_path = get_predefined_voices_path(ensure_absolute=True)
+    return _list_voices(base_path=pred_path, voice_type="predefined")
 
 
 # ============================================================

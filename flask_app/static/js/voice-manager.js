@@ -40,6 +40,35 @@ const voiceManager = (() => {
           </table>
         </div>
       `;
+            const predefinedContainer = document.getElementById('predefined-voices-list-container');
+            if (predefinedContainer) {
+                const predVoices = data.predefined_voices || [];
+                if (!predVoices.length) {
+                    predefinedContainer.innerHTML = '<div class="queue-empty">Brak domyślnych głosów.</div>';
+                } else {
+                    predefinedContainer.innerHTML = `
+            <div style="overflow-x:auto">
+              <table class="voice-list-table">
+                <thead>
+                  <tr>
+                    <th>Nazwa</th>
+                    <th>Plik</th>
+                    <th>Język</th>
+                    <th>Płeć</th>
+                    <th>Długość</th>
+                    <th>Status</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${predVoices.map(v => renderVoiceRow(v, true)).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+                }
+            }
+
             // Refresh voice list for assignments
             loadVoicesForAssignments && loadVoicesForAssignments();
         } catch (e) {
@@ -47,12 +76,20 @@ const voiceManager = (() => {
         }
     }
 
-    function renderVoiceRow(v) {
+    function renderVoiceRow(v, isPredefined = false) {
         const genderLabel = { male: '♂ Mężczyzna', female: '♀ Kobieta', unknown: '— Nieznane' };
         const dur = v.duration_seconds ? `${v.duration_seconds}s` : '?';
         const valid = v.is_valid_prompt
             ? '<span class="valid-badge">✓ Ważny</span>'
             : '<span class="invalid-badge">✗ Za krótki</span>';
+
+        let actionsHtml = `<button class="btn btn-secondary btn-sm" onclick="voiceManager.previewVoice('${v.id}')" title="Podgląd głosu">▶</button>`;
+        if (!isPredefined) {
+            actionsHtml += `
+            <button class="btn btn-secondary btn-sm" onclick="voiceManager.editVoice('${v.id}','${escapeHtml(v.name)}','${v.gender}','${v.language}','${escapeHtml(v.description || '')}')" title="Edytuj">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="voiceManager.deleteVoice('${v.id}','${escapeHtml(v.name)}')" title="Usuń">🗑</button>
+            `;
+        }
 
         return `
       <tr>
@@ -66,9 +103,7 @@ const voiceManager = (() => {
         <td>${valid}</td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="voiceManager.previewVoice('${v.id}')" title="Podgląd głosu">▶</button>
-            <button class="btn btn-secondary btn-sm" onclick="voiceManager.editVoice('${v.id}','${escapeHtml(v.name)}','${v.gender}','${v.language}','${escapeHtml(v.description || '')}')" title="Edytuj">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="voiceManager.deleteVoice('${v.id}','${escapeHtml(v.name)}')" title="Usuń">🗑</button>
+            ${actionsHtml}
           </div>
         </td>
       </tr>

@@ -83,10 +83,10 @@ const voiceManager = (() => {
             ? '<span class="valid-badge">✓ Ważny</span>'
             : '<span class="invalid-badge">✗ Za krótki</span>';
 
-        let actionsHtml = `<button class="btn btn-secondary btn-sm" onclick="voiceManager.previewVoice('${v.id}')" title="Podgląd głosu">▶</button>`;
+        let actionsHtml = `<button class="btn btn-secondary btn-sm" onclick="voiceManager.previewVoice('${v.id}')" title="Podgląd głosu">▶</button>
+            <button class="btn btn-secondary btn-sm" onclick="voiceManager.editVoice('${v.id}','${escapeHtml(v.name)}','${v.gender}','${v.language}','${escapeHtml(v.description || '')}')" title="Edytuj">✏️</button>`;
         if (!isPredefined) {
             actionsHtml += `
-            <button class="btn btn-secondary btn-sm" onclick="voiceManager.editVoice('${v.id}','${escapeHtml(v.name)}','${v.gender}','${v.language}','${escapeHtml(v.description || '')}')" title="Edytuj">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="voiceManager.deleteVoice('${v.id}','${escapeHtml(v.name)}')" title="Usuń">🗑</button>
             `;
         }

@@ -316,12 +316,17 @@ def api_voices_edit(voice_id: str):
     data = request.get_json(force=True)
     meta = _load_voice_metadata()
 
-    ref_path = get_reference_audio_path(ensure_absolute=True)
+    ref_paths_to_search = [get_reference_audio_path(ensure_absolute=True), get_predefined_voices_path(ensure_absolute=True)]
     target_file = None
-    for f in ref_path.iterdir():
-        if f.stem == voice_id and f.suffix.lower() in (".wav", ".mp3"):
-            target_file = f.name
+    
+    for search_dir in ref_paths_to_search:
+        if target_file:
             break
+        if search_dir.exists():
+            for f in search_dir.iterdir():
+                if f.stem == voice_id and f.suffix.lower() in (".wav", ".mp3"):
+                    target_file = f.name
+                    break
 
     if not target_file:
         return jsonify({"success": False, "error": "Głos nie znaleziony"}), 404
@@ -357,12 +362,17 @@ def api_voices_delete(voice_id: str):
 
 @api_bp.route("/chatterbox-voices/<voice_id>/preview", methods=["GET"])
 def api_voices_preview(voice_id: str):
-    ref_path = get_reference_audio_path(ensure_absolute=True)
+    ref_paths_to_search = [get_reference_audio_path(ensure_absolute=True), get_predefined_voices_path(ensure_absolute=True)]
     target_file = None
-    for f in ref_path.iterdir():
-        if f.stem == voice_id and f.suffix.lower() in (".wav", ".mp3"):
-            target_file = f
+    
+    for search_dir in ref_paths_to_search:
+        if target_file:
             break
+        if search_dir.exists():
+            for f in search_dir.iterdir():
+                if f.stem == voice_id and f.suffix.lower() in (".wav", ".mp3"):
+                    target_file = f
+                    break
 
     if not target_file:
         return jsonify({"success": False, "error": "Głos nie znaleziony"}), 404

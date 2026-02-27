@@ -486,6 +486,51 @@
     </div>
   </div>
 
+  <!-- Edit Voice Modal -->
+  <div class="modal-overlay" id="edit-voice-modal" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">✏️ Edytuj prompt głosowy</div>
+        <button class="modal-close" onclick="voiceManager.closeEditModal()">✕</button>
+      </div>
+
+      <input type="hidden" id="edit-voice-id-input">
+      
+      <div class="form-group mt-3">
+        <label>Nazwa głosu *</label>
+        <input type="text" id="edit-voice-name-input">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Płeć</label>
+          <select id="edit-voice-gender-input">
+            <option value="unknown">Nieznane</option>
+            <option value="female">Kobieta</option>
+            <option value="male">Mężczyzna</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Język</label>
+          <select id="edit-voice-language-input">
+            <option value="pl">Polski</option>
+            <option value="en">Angielski</option>
+            <option value="de">Niemiecki</option>
+            <option value="fr">Francuski</option>
+            <option value="other">Inny</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Opis (opcjonalnie)</label>
+        <input type="text" id="edit-voice-description-input">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="voiceManager.closeEditModal()">Anuluj</button>
+        <button class="btn btn-primary" id="save-voice-btn" onclick="voiceManager.submitEditVoice()">💾 Zapisz zmiany</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast container -->
   <div id="toast-container"></div>
 

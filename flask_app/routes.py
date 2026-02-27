@@ -18,7 +18,7 @@ import math
 import utils
 from typing import Dict, Any, Optional
 
-from config import get_reference_audio_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_full_config_for_template, get_artifacts_tuning_panel_enabled
+from config import get_reference_audio_path, get_predefined_voices_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_full_config_for_template, get_artifacts_tuning_panel_enabled
 import soundfile as sf
 import gc
 import torch

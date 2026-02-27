@@ -136,19 +136,57 @@ const voiceManager = (() => {
         }
     }
 
-    async function editVoice(voiceId, name, gender, language, description) {
-        const newName = prompt('Nowa nazwa głosu:', name);
-        if (!newName || !newName.trim()) return;
+    function editVoice(voiceId, name, gender, language, description) {
+        document.getElementById('edit-voice-id-input').value = voiceId;
+        document.getElementById('edit-voice-name-input').value = name;
+        document.getElementById('edit-voice-gender-input').value = gender || 'unknown';
+        document.getElementById('edit-voice-language-input').value = language || 'pl';
+        document.getElementById('edit-voice-description-input').value = description || '';
+        document.getElementById('edit-voice-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('edit-voice-modal').style.display = 'none';
+        document.getElementById('edit-voice-id-input').value = '';
+    }
+
+    async function submitEditVoice() {
+        const voiceId = document.getElementById('edit-voice-id-input').value;
+        const newName = document.getElementById('edit-voice-name-input').value.trim();
+        const newGender = document.getElementById('edit-voice-gender-input').value;
+        const newLanguage = document.getElementById('edit-voice-language-input').value;
+        const newDescription = document.getElementById('edit-voice-description-input').value.trim();
+
+        if (!newName) {
+            showToast('Nazwa głosu pole jest wymagane!', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('save-voice-btn');
+        btn.disabled = true;
+        btn.innerHTML = 'Zapisywanie...';
+
         try {
-            await fetch(`/api/chatterbox-voices/${voiceId}`, {
+            const resp = await fetch(`/api/chatterbox-voices/${voiceId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newName.trim(), gender, language, description })
+                body: JSON.stringify({ 
+                    name: newName, 
+                    gender: newGender, 
+                    language: newLanguage, 
+                    description: newDescription 
+                })
             });
-            showToast('Zaktualizowano', 'success');
+            const data = await resp.json();
+            if(!data.success) throw new Error(data.error || "Wystąpił nieznany błąd podczas zapisywania");
+            showToast('Zaktualizowano metadane pomyślnie!', 'success');
+            closeEditModal();
             refresh();
         } catch (e) {
             showToast('Błąd edycji: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '💾 Zapisz zmiany';
         }
     }
 
@@ -232,5 +270,5 @@ const voiceManager = (() => {
         if (e.target === this) closeUploadModal();
     });
 
-    return { refresh, previewVoice, deleteVoice, editVoice, openUploadModal, closeUploadModal, uploadVoice };
+    return { refresh, previewVoice, deleteVoice, editVoice, openUploadModal, closeUploadModal, uploadVoice, closeEditModal, submitEditVoice };
 })();

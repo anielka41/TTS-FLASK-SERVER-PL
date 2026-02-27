@@ -730,8 +730,10 @@ def api_logs_get():
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                         content = f.read()
-                    if content.strip():
-                        log_data[file_path.name] = content
+                    # Zawsze zwracaj plik, nawet jak jest pusty, by UI mogło wyrysować Tab.
+                    if content is None:
+                        content = ""
+                    log_data[file_path.name] = content.strip()
                 except Exception as e:
                     logger.warning(f"Could not read log file {file_path.name}: {e}")
         return jsonify({"success": True, "logs": log_data})
@@ -752,10 +754,12 @@ def api_logs_delete_single(filename: str):
         return jsonify({"success": False, "error": "Plik nie istnieje"}), 404
 
     try:
-        # Clear the file by opening it in write mode
+        # Puste otwarcie pliku go wyczyści (truncate do 0 bytes)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("")
         return jsonify({"success": True, "message": f"Log {filename} wyczyszczony."})
+    except PermissionError:
+        return jsonify({"success": False, "error": f"Brak uprawnień do pliku {filename}. Sugestia: 'sudo chown tomasz:tomasz {file_path}'"}), 403
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -767,13 +771,20 @@ def api_logs_delete_all():
         return jsonify({"success": True, "message": "Brak katalogu logów."})
 
     try:
+        errors = []
         for file_path in logs_dir.glob("*.log"):
             if file_path.is_file():
                 try:
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write("")
+                except PermissionError:
+                    errors.append(file_path.name)
                 except Exception as e:
                     logger.warning(f"Could not clear log file {file_path.name}: {e}")
+                    
+        if errors:
+            return jsonify({"success": False, "error": f"Brak uprawnień do plików: {', '.join(errors)}. Sugestia: 'sudo chown tomasz:tomasz logs/*.log'"}), 403
+            
         return jsonify({"success": True, "message": "Wszystkie logi wyczyszczone."})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

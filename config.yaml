@@ -26,7 +26,7 @@ generation_defaults:
   cfg_weight: 0.5
   seed: 0
   speed_factor: 1.0
-  sentence_pause_ms: 150
+  sentence_pause_ms: 200
   language: pl
   chunk_size: 200
   top_p: 0.9
@@ -61,9 +61,9 @@ artifacts:
   tuning_panel_enabled: true
   enabled: true
   denoise_enabled: true
-  denoise_strength: 0.5
+  denoise_strength: 0.6
   autoeditor_enabled: true
-  autoeditor_threshold: 7.5
+  autoeditor_threshold: 10
   autoeditor_margin: 0.2
   ffmpeg_normalize_enabled: true
 whisper:

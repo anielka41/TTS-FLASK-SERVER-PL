@@ -114,10 +114,15 @@ def _process_chapter(job_id: str, ch_idx: int):
             audio_prompt = va.get("audio_prompt_path", va.get("voice", None))
             lang_code = va.get("lang_code", get_gen_default_language())
 
-            # Fallback to default voice if none provided
+            # Jeżeli brak wybranego u bieżącego speakera audio_prompt to:
+            #   1) upewniamy się, czy "default" z JSON'a przypadkiem go nie nadpisuje
+            #   2) jeśli nie, bierzemy ostatecznie głos z konfigu globalnego.
             if not audio_prompt:
-                from config import get_default_voice_id
-                audio_prompt = get_default_voice_id()
+                default_va = voice_assignments.get("default", {})
+                audio_prompt = default_va.get("audio_prompt_path", default_va.get("voice", None))
+                if not audio_prompt:
+                    from config import get_default_voice_id
+                    audio_prompt = get_default_voice_id()
 
             prompt_path = None
             if audio_prompt:

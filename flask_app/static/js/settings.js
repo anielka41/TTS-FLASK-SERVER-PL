@@ -2,7 +2,8 @@
 
 const settingsModule = (() => {
   let currentSettings = {};
-  let currentVoicesOption = [];
+  let currentVoicesCustom = [];
+  let currentVoicesPredefined = [];
 
   async function load() {
     const container = document.getElementById('settings-container');
@@ -17,7 +18,10 @@ const settingsModule = (() => {
       currentSettings = data.settings || {};
 
       const vData = await voicesResp.json();
-      if (vData.success) currentVoicesOption = vData.voices || [];
+      if (vData.success) {
+        currentVoicesCustom = vData.voices || [];
+        currentVoicesPredefined = vData.predefined_voices || [];
+      }
 
       render(currentSettings);
     } catch (e) {
@@ -120,7 +124,8 @@ const settingsModule = (() => {
             <label>Domyślny głos (Prompt)</label>
             <select id="s-default-prompt">
               <option value="">— Brak (użyj systemowego domyślnego) —</option>
-              ${currentVoicesOption.map(v => `<option value="${v.file_name}" ${s.chatterbox_mtl_local_default_prompt === v.file_name ? 'selected' : ''}>${v.name}</option>`).join('')}
+              ${currentVoicesCustom.length > 0 ? `<optgroup label="Moje głosy (Dodane)">` + currentVoicesCustom.map(v => `<option value="${v.file_name}" ${s.chatterbox_mtl_local_default_prompt === v.file_name ? 'selected' : ''}>${v.name}</option>`).join('') + `</optgroup>` : ''}
+              ${currentVoicesPredefined.length > 0 ? `<optgroup label="Domyślne głosy Chatterbox">` + currentVoicesPredefined.map(v => `<option value="${v.file_name}" ${s.chatterbox_mtl_local_default_prompt === v.file_name ? 'selected' : ''}>${v.name}</option>`).join('') + `</optgroup>` : ''}
             </select>
           </div>
 

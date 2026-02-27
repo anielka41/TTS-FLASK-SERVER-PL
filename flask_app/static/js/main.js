@@ -339,7 +339,11 @@ async function generateAudio() {
 
   // Build final voice assignments
   const finalAssignments = {};
-  currentSpeakers.forEach((speaker) => {
+  
+  // If user never clicked "Analyze", currentSpeakers might be empty, so we assume "default".
+  const speakersToProcess = currentSpeakers.length > 0 ? currentSpeakers : ["default"];
+
+  speakersToProcess.forEach((speaker) => {
     finalAssignments[speaker] = voiceAssignments[speaker] || {};
     if (!finalAssignments[speaker].lang_code) {
       finalAssignments[speaker].lang_code = "pl";
@@ -351,6 +355,7 @@ async function generateAudio() {
       finalAssignments[speaker].voice = globalOverrideVoice;
     }
   });
+
 
   // Collect chapters from repeater if available
   let chapters = [];

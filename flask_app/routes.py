@@ -18,7 +18,7 @@ import math
 import utils
 from typing import Dict, Any, Optional
 
-from config import get_reference_audio_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_full_config_for_template
+from config import get_reference_audio_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_full_config_for_template, get_artifacts_tuning_panel_enabled
 import soundfile as sf
 import gc
 import torch
@@ -105,6 +105,8 @@ def api_generate():
         first_line = (text or (chapters[0] if chapters else "")).split("\n")[0][:50].strip()
         title = re.sub(r"\[\/?\w[\w-]*\]", "", first_line).strip() or "Brak nazwy projektu"
 
+    from config import get_artifacts_enabled
+    pipeline_mode_val = "tuning" if get_artifacts_enabled() else "baseline"
     job = db.db_create_job(
         job_id=job_id,
         title=title,
@@ -116,6 +118,7 @@ def api_generate():
         split_by_chapter=bool(chapters),
         chapters=chapters if chapters else [],
         total_chapters=len(chapters) if chapters else 1,
+        pipeline_mode=pipeline_mode_val,
     )
 
     from redis import Redis
@@ -130,6 +133,7 @@ def api_generate():
 
     active = db.db_get_active_job_count()
     return jsonify({"success": True, "job_id": job_id, "queue_position": active})
+
 
 
 # ============================================================
@@ -512,8 +516,12 @@ def api_settings_get():
         "chatterbox_mtl_local_seed": cfg.get("generation_defaults", {}).get("seed", 0),
         "chatterbox_mtl_local_speed_factor": cfg.get("generation_defaults", {}).get("speed_factor", 1.0),
         "chatterbox_mtl_local_sentence_pause_ms": cfg.get("generation_defaults", {}).get("sentence_pause_ms", 500),
+        "chatterbox_mtl_local_norm_loudness": cfg.get("tts_engine", {}).get("norm_loudness", True),
+        "chatterbox_mtl_local_prompt_norm_loudness": cfg.get("tts_engine", {}).get("prompt_norm_loudness", True),
         "model_repo_id": cfg.get("model", {}).get("repo_id", "chatterbox-multilingual"),
-        "num_workers": int(os.environ.get("NUM_WORKERS", 1))
+        "num_workers": int(os.environ.get("NUM_WORKERS", 1)),
+        "artifacts": cfg.get("artifacts", {}),
+        "whisper": cfg.get("whisper", {})
     }
     return jsonify({"success": True, "settings": settings})
 
@@ -567,12 +575,28 @@ def api_settings_save():
         eng["device"] = data["chatterbox_mtl_local_device"]
     if "chatterbox_mtl_local_default_prompt" in data:
         eng["default_voice_id"] = data["chatterbox_mtl_local_default_prompt"]
+    if "chatterbox_mtl_local_norm_loudness" in data:
+        eng["norm_loudness"] = bool(data["chatterbox_mtl_local_norm_loudness"])
+    if "chatterbox_mtl_local_prompt_norm_loudness" in data:
+        eng["prompt_norm_loudness"] = bool(data["chatterbox_mtl_local_prompt_norm_loudness"])
     if eng:
         update["tts_engine"] = eng
 
     # Model
     if "model_repo_id" in data:
         update["model"] = {"repo_id": data["model_repo_id"]}
+        
+    # Artifacts & Whisper
+    if "artifacts" in data and isinstance(data["artifacts"], dict):
+        update["artifacts"] = data["artifacts"]
+        
+    if "tuning_panel_enabled" in data:
+        if "artifacts" not in update:
+            update["artifacts"] = {}
+        update["artifacts"]["tuning_panel_enabled"] = bool(data["tuning_panel_enabled"])
+
+    if "whisper" in data and isinstance(data["whisper"], dict):
+        update["whisper"] = data["whisper"]
 
     # Update env num_workers
     worker_success_msg = ""
@@ -688,6 +712,71 @@ def api_upload_document():
 @main_bp.route("/outputs/<path:filepath>")
 def serve_output(filepath: str):
     return send_from_directory(str(JOBS_DIR), filepath)
+
+
+# ============================================================
+# Routes: Logs
+# ============================================================
+@api_bp.route("/logs", methods=["GET"])
+def api_logs_get():
+    logs_dir = FLASK_APP_DIR.parent / "logs"
+    if not logs_dir.exists():
+        return jsonify({"success": True, "logs": {}})
+
+    log_data = {}
+    try:
+        for file_path in logs_dir.glob("*.log"):
+            if file_path.is_file():
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read()
+                    if content.strip():
+                        log_data[file_path.name] = content
+                except Exception as e:
+                    logger.warning(f"Could not read log file {file_path.name}: {e}")
+        return jsonify({"success": True, "logs": log_data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@api_bp.route("/logs/<filename>", methods=["DELETE"])
+def api_logs_delete_single(filename: str):
+    # Basic sanitization
+    if not filename.endswith(".log") or "/" in filename or "\\" in filename or ".." in filename:
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
+
+    logs_dir = FLASK_APP_DIR.parent / "logs"
+    file_path = logs_dir / filename
+
+    if not file_path.exists():
+        return jsonify({"success": False, "error": "Plik nie istnieje"}), 404
+
+    try:
+        # Clear the file by opening it in write mode
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("")
+        return jsonify({"success": True, "message": f"Log {filename} wyczyszczony."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@api_bp.route("/logs", methods=["DELETE"])
+def api_logs_delete_all():
+    logs_dir = FLASK_APP_DIR.parent / "logs"
+    if not logs_dir.exists():
+        return jsonify({"success": True, "message": "Brak katalogu logów."})
+
+    try:
+        for file_path in logs_dir.glob("*.log"):
+            if file_path.is_file():
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write("")
+                except Exception as e:
+                    logger.warning(f"Could not clear log file {file_path.name}: {e}")
+        return jsonify({"success": True, "message": "Wszystkie logi wyczyszczone."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================

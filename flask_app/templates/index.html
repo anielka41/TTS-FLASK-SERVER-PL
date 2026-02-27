@@ -57,6 +57,7 @@
           style="display:none">0</span></button>
       <button class="tab-btn" data-tab="converter">🔄 Konwerter</button>
       <button class="tab-btn" data-tab="settings">⚙️ Ustawienia</button>
+      <button class="tab-btn" data-tab="logs">📄 Logi</button>
       <button class="tab-btn" data-tab="help">❓ Pomoc</button>
     </nav>
   </div>
@@ -399,6 +400,30 @@
       </div>
     </div>
 
+    <!-- ====== TAB: LOGI ====== -->
+    <div class="tab-pane" id="tab-logs">
+      <div class="card" style="height: calc(100vh - 180px); display: flex; flex-direction: column;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+          <span><span class="icon">📄</span> Logi Systemowe</span>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-logs" onclick="logsModule.loadLogs()">🔄 Odśwież</button>
+            <button class="btn btn-danger btn-sm" id="btn-clear-active-log" style="display:none;" onclick="logsModule.clearActiveLog()">🗑 Wyczyść aktywny</button>
+            <button class="btn btn-danger btn-sm" id="btn-clear-all-logs" onclick="logsModule.clearAllLogs()">💥 Wyczyść wszystkie</button>
+          </div>
+        </div>
+        
+        <div class="tabs-wrapper" style="background: var(--bg-primary); border-bottom: 1px solid var(--border); margin-top: 10px;">
+          <nav class="tabs-nav" id="logs-tabs-nav" style="border-bottom: none; background: transparent;">
+            <!-- Dynamic log tabs will be inserted here -->
+          </nav>
+        </div>
+        
+        <div id="logs-content-container" style="flex: 1; margin-top: 10px; overflow-y: auto; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border); padding: 10px;">
+          <pre id="log-viewer" style="margin: 0; font-family: monospace; font-size: 0.85rem; color: #a8b2d1; white-space: pre-wrap; word-wrap: break-word;">Wybierz plik logu, aby zobaczyć jego zawartość.</pre>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Upload Voice Modal -->
@@ -489,6 +514,7 @@
   <script src="/static/js/library.js"></script>
   <script src="/static/js/settings.js"></script>
   <script src="/static/js/voice-manager.js"></script>
+  <script src="/static/js/logs.js"></script>
 
 </body>
 

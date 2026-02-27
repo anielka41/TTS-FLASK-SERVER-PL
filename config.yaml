@@ -15,19 +15,21 @@ tts_engine:
   predefined_voices_path: voices
   reference_audio_path: reference_audio
   default_voice_id: Kustosz.wav
+  norm_loudness: true
+  prompt_norm_loudness: true
 paths:
   model_cache: model_cache
   output: outputs
 generation_defaults:
-  temperature: 0.6
+  temperature: 0.75
   exaggeration: 0.5
   cfg_weight: 0.5
   seed: 0
   speed_factor: 1.0
-  sentence_pause_ms: 250
+  sentence_pause_ms: 150
   language: pl
   chunk_size: 200
-  top_p: 0.95
+  top_p: 0.9
   repetition_penalty: 1.2
 audio_output:
   format: wav
@@ -55,6 +57,23 @@ ui_state:
   hide_generation_warning: true
   theme: light
   last_preset_name: "\u26A1 Turbo: Escape Room Panic"
+artifacts:
+  tuning_panel_enabled: true
+  enabled: true
+  denoise_enabled: true
+  denoise_strength: 0.5
+  autoeditor_enabled: true
+  autoeditor_threshold: 7.5
+  autoeditor_margin: 0.2
+  ffmpeg_normalize_enabled: true
+whisper:
+  enabled: false
+  backend: whisper
+  model_name: small
+  language: pl
+workers:
+  num_workers: 2
+  max_parallel_chunks_per_worker: 1
 ui:
   title: Chatterbox TTS Server
   show_language_select: true

@@ -34,8 +34,10 @@ soundfile                       # Audio file I/O (requires libsndfile system lib
 pydub                          # Simple audio manipulation
 audiotsm                       # Audio time-scale modification
 praat-parselmouth              # Python interface to Praat speech analysis
-                               # NOTE: Use 'praat-parselmouth' not 'parselmouth' 
-                               # to avoid setuptools use_2to3 compatibility issues
+pyrnnoise                      # RNNoise denoising
+auto-editor                    # Automatic silence and stutter removal
+openai-whisper                 # Whisper inference
+faster-whisper                 # Faster Whisper inference
 
 # --- Web & API Utilities ---
 python-multipart               # Form data parsing for FastAPI

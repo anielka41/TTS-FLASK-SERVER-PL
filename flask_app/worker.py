@@ -27,6 +27,7 @@ JOBS_DIR = get_output_path(ensure_absolute=True)
 # ============================================================
 def _process_chapter(job_id: str, ch_idx: int):
     """Worker thread for processing a SINGLE chapter of a TTS job."""
+    config_manager.load_config()
     job = db.db_get_job(job_id)
     if not job:
         return
@@ -143,6 +144,17 @@ def _process_chapter(job_id: str, ch_idx: int):
                 speed_factor = get_gen_default_speed_factor()
                 if speed_factor and speed_factor != 1.0 and speed_factor > 0:
                     audio_np = librosa.effects.time_stretch(audio_np, rate=speed_factor)
+                    
+                # ----- NEW: Apply Artifact Reduction Pipeline based on mode -----
+                pipeline_mode = job.get("pipeline_mode", "baseline")
+                if pipeline_mode in ("test_pipeline", "tuning"):
+                    try:
+                        from flask_app.artifacts import apply_artifacts_pipeline
+                        is_test = (pipeline_mode == "test_pipeline")
+                        audio_np = apply_artifacts_pipeline(audio_np, sr, expected_text=chunk_text, is_test_mode=is_test)
+                    except Exception as e:
+                        logger.error(f"Failed to apply artifacts pipeline: {e}")
+                # --------------------------------------------------
 
                 audio_parts.append(audio_np)
                 
@@ -156,6 +168,31 @@ def _process_chapter(job_id: str, ch_idx: int):
         if audio_parts:
             full_audio = np.concatenate(audio_parts)
             ext = output_format if output_format in ("mp3", "wav", "ogg") else "wav"
+            
+            pipeline_mode = job.get("pipeline_mode", "baseline")
+            if pipeline_mode == "test_pipeline":
+                # Save to test_outputs
+                from config import get_output_path
+                test_dir = get_output_path(ensure_absolute=True).parent / "test_outputs"
+                test_dir.mkdir(parents=True, exist_ok=True)
+                
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                output_filename = f"test_{timestamp}_{job_id[:8]}.{ext}"
+                output_path = test_dir / output_filename
+                
+                audio_bytes = _encode_audio_to_format(full_audio, sr, output_format, output_bitrate)
+                output_path.write_bytes(audio_bytes)
+                
+                db.db_update_chapter_state(job_id, ch_idx, worker_name, total_chunks, total_chunks, "completed")
+                db.db_update_job(
+                    job_id,
+                    output_files=[f"/test_outputs/{output_filename}"],
+                    status="completed",
+                    progress=100,
+                    completed_at=datetime.utcnow().isoformat(),
+                )
+                return
+            
             # File name: chapter_number.format
             output_filename = f"{ch_idx + 1}.{ext}"
             output_path = job_dir / output_filename

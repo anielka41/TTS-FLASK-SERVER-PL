@@ -59,7 +59,8 @@ def init_db():
             completed_chapters INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             started_at TEXT,
-            completed_at TEXT
+            completed_at TEXT,
+            pipeline_mode TEXT NOT NULL DEFAULT 'baseline'
         );
 
         CREATE TABLE IF NOT EXISTS job_chapters (
@@ -73,6 +74,13 @@ def init_db():
             PRIMARY KEY (job_id, chapter_index)
         );
     """)
+    
+    # Run migration if pipeline_mode doesn't exist
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN pipeline_mode TEXT NOT NULL DEFAULT 'baseline'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     conn.commit()
 
 
@@ -166,6 +174,7 @@ def db_create_job(
     split_by_chapter: bool = False,
     chapters: Optional[List[str]] = None,
     total_chapters: int = 0,
+    pipeline_mode: str = "baseline",
 ) -> Dict[str, Any]:
     conn = _get_conn()
     now = datetime.utcnow().isoformat()
@@ -176,8 +185,8 @@ def db_create_job(
             output_format, output_bitrate_kbps,
             voice_assignments_json, output_files_json,
             tts_engine, split_by_chapter, chapters_json,
-            completed_chapters, created_at
-        ) VALUES (?, ?, ?, 'queued', 0, 0, 0, 0, ?, ?, ?, ?, '[]', ?, ?, ?, 0, ?)""",
+            completed_chapters, created_at, pipeline_mode
+        ) VALUES (?, ?, ?, 'queued', 0, 0, 0, 0, ?, ?, ?, ?, '[]', ?, ?, ?, 0, ?, ?)""",
         (
             job_id, title, text,
             total_chapters,
@@ -187,6 +196,7 @@ def db_create_job(
             1 if split_by_chapter else 0,
             json.dumps(chapters or [], ensure_ascii=False),
             now,
+            pipeline_mode
         ),
     )
     conn.commit()

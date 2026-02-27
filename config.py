@@ -99,6 +99,25 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "hide_generation_warning": False,  # Flag to hide the general generation quality notice modal.
         "theme": "dark",  # Default UI theme ('dark' or 'light').
     },
+    "artifacts": {
+        "tuning_panel_enabled": False, # If true, allows tuning panel editing and forces tuning mode
+        "enabled": False,  # Global master switch for artifact reduction features
+        "denoise_enabled": False,  # pyrnnoise on/off
+        "denoise_strength": 0.5, # Strength of mixing (0.1 to 1.0)
+        "autoeditor_enabled": False,  # auto-editor post-processing on/off
+        "autoeditor_threshold": 0.04,  # Silence threshold (amplitude)
+        "autoeditor_margin": 0.2,  # Margin before/after silence (seconds)
+    },
+    "whisper": {
+        "enabled": False,  # Use Whisper validation
+        "backend": "faster-whisper",  # "whisper" or "faster-whisper"
+        "model_name": "small",  # "tiny", "base", "small", "medium", "large"
+        "language": "pl",  # Language for validation
+    },
+    "workers": {
+        "num_workers": 2,  # Reflected via Env/Supervisor. Stored here for defaults.
+        "max_parallel_chunks_per_worker": 1,  # Max TTS chunks generated in parallel per worker.
+    },
     "ui": {  # General UI display settings.
         "title": "Chatterbox TTS Server",  # Title displayed in the web UI.
         "show_language_select": True,  # Whether to show language selection in the UI.
@@ -809,6 +828,110 @@ def get_output_path(ensure_absolute: bool = True) -> Path:
 
 
 # Default Generation Parameter Accessors
+def get_artifacts_tuning_panel_enabled() -> bool:
+    """Returns whether the artifacts/tuning panel is enabled in UI"""
+    return config_manager.get_bool(
+        "artifacts.tuning_panel_enabled",
+        _get_default_from_structure("artifacts.tuning_panel_enabled")
+    )
+
+
+def get_artifacts_enabled() -> bool:
+    """Returns whether artifact reduction is globally enabled."""
+    return config_manager.get_bool(
+        "artifacts.enabled",
+        _get_default_from_structure("artifacts.enabled")
+    )
+
+
+def get_artifacts_denoise_enabled() -> bool:
+    """Returns whether RNNoise denoising is enabled."""
+    return config_manager.get_bool(
+        "artifacts.denoise_enabled",
+        _get_default_from_structure("artifacts.denoise_enabled")
+    )
+
+
+def get_artifacts_autoeditor_enabled() -> bool:
+    """Returns whether Auto-Editor is enabled."""
+    return config_manager.get_bool(
+        "artifacts.autoeditor_enabled",
+        _get_default_from_structure("artifacts.autoeditor_enabled")
+    )
+
+
+def get_artifacts_autoeditor_threshold() -> float:
+    """Returns the silence threshold for Auto-Editor."""
+    return config_manager.get_float(
+        "artifacts.autoeditor_threshold",
+        _get_default_from_structure("artifacts.autoeditor_threshold")
+    )
+
+
+def get_artifacts_autoeditor_margin() -> float:
+    """Returns the silence margin for Auto-Editor."""
+    return config_manager.get_float(
+        "artifacts.autoeditor_margin",
+        _get_default_from_structure("artifacts.autoeditor_margin")
+    )
+
+
+def get_artifacts_denoise_strength() -> float:
+    """Returns the mixing strength of RNNoise (0.1 to 1.0)."""
+    return config_manager.get_float(
+        "artifacts.denoise_strength",
+        _get_default_from_structure("artifacts.denoise_strength", default_val=0.5)
+    )
+
+
+def get_whisper_enabled() -> bool:
+    """Returns whether Whisper validation is enabled."""
+    return config_manager.get_bool(
+        "whisper.enabled",
+        _get_default_from_structure("whisper.enabled")
+    )
+
+
+def get_whisper_backend() -> str:
+    """Returns the Whisper backend to use ('whisper' or 'faster-whisper')."""
+    return config_manager.get_string(
+        "whisper.backend",
+        _get_default_from_structure("whisper.backend")
+    )
+
+
+def get_whisper_model_name() -> str:
+    """Returns the Whisper model name to load."""
+    return config_manager.get_string(
+        "whisper.model_name",
+        _get_default_from_structure("whisper.model_name")
+    )
+
+
+def get_whisper_language() -> str:
+    """Returns the Whisper language override for validation."""
+    return config_manager.get_string(
+        "whisper.language",
+        _get_default_from_structure("whisper.language")
+    )
+
+
+def get_num_workers() -> int:
+    """Returns the configured number of background workers."""
+    return config_manager.get_int(
+        "workers.num_workers",
+        _get_default_from_structure("workers.num_workers")
+    )
+
+
+def get_max_parallel_chunks_per_worker() -> int:
+    """Returns the configured max parallel chunks per worker."""
+    return config_manager.get_int(
+        "workers.max_parallel_chunks_per_worker",
+        _get_default_from_structure("workers.max_parallel_chunks_per_worker")
+    )
+
+
 def get_gen_default_temperature() -> float:
     """Returns the default temperature for TTS generation."""
     return config_manager.get_float(

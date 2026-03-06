@@ -843,15 +843,11 @@ def api_system_status():
 # Main Entry Point
 # ============================================================
 def _load_engine():
-    logger.info("Loading TTS engine...")
+    logger.info("Initializing TTS engine (lazy model loading enabled)...")
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
     get_reference_audio_path(ensure_absolute=True).mkdir(parents=True, exist_ok=True)
     db.init_db()
     logger.info("SQLite database initialized.")
-
-    if not engine.load_model():
-        logger.error("CRITICAL: TTS Model failed to load!")
-    else:
-        logger.info("TTS Model loaded successfully.")
+    logger.info("TTS model will be loaded on first use (lazy loading). No GPU memory used at startup.")
 
 

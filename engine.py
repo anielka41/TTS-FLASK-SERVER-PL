@@ -385,6 +385,20 @@ def load_model() -> bool:
         return False
 
 
+def ensure_model_loaded() -> bool:
+    """
+    Ensures the TTS model is loaded. Loads on first call (lazy init).
+    Thread-safe: load_model() already checks MODEL_LOADED flag.
+
+    Returns:
+        bool: True if model is loaded (or was already loaded), False on failure.
+    """
+    if MODEL_LOADED:
+        return True
+    logger.info("Lazy loading TTS model on first use...")
+    return load_model()
+
+
 def synthesize(
     text: str,
     audio_prompt_path: Optional[str] = None,
@@ -414,8 +428,10 @@ def synthesize(
     global chatterbox_model
 
     if not MODEL_LOADED or chatterbox_model is None:
-        logger.error("TTS model is not loaded. Cannot synthesize audio.")
-        return None, None
+        logger.info("Model not loaded yet. Loading on demand (lazy init)...")
+        if not ensure_model_loaded():
+            logger.error("TTS model failed to load on demand. Cannot synthesize.")
+            return None, None
 
     try:
         # Set seed globally if a specific seed value is provided and is non-zero.

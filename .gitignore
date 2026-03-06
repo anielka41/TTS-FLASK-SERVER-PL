@@ -22,6 +22,7 @@ DEMO/
 # Ignore OS generated files
 .DS_Store
 Thumbs.db
+start_xtts.sh
 
 # Ignore virtual environment directories
 .venv/

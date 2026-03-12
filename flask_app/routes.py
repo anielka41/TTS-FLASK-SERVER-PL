@@ -840,6 +840,72 @@ def api_system_status():
 
 
 # ============================================================
+# Routes: API - Artifact Fingerprints
+# ============================================================
+@api_bp.route("/artifacts/fingerprints", methods=["GET"])
+def api_artifacts_fingerprints_get():
+    from flask_app.artifact_fingerprints import load_fingerprints
+    fps = load_fingerprints()
+    # Don't send the large MFCC matrix to the UI
+    res = [{"id": f["id"], "name": f["name"]} for f in fps]
+    return jsonify({"success": True, "fingerprints": res})
+
+
+@api_bp.route("/artifacts/fingerprints/upload", methods=["POST"])
+def api_artifacts_fingerprints_upload():
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "Brak pliku"}), 400
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"success": False, "error": "Brak nazwy pliku"}), 400
+
+    name = request.form.get("name", file.filename).strip()
+    if not name:
+        name = file.filename
+
+    import tempfile
+    import librosa
+    from flask_app.artifact_fingerprints import extract_mfcc, save_fingerprint
+
+    try:
+        # Save temp file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+
+        # Load audio (mono, 24k to match TTS output generally)
+        audio_np, sr = librosa.load(tmp_path, sr=24000, mono=True)
+        os.unlink(tmp_path)
+
+        if len(audio_np) == 0:
+            return jsonify({"success": False, "error": "Pusty plik audio"}), 400
+
+        # Extract MFCC
+        mfcc = extract_mfcc(audio_np, sr)
+        if mfcc.size == 0:
+            return jsonify({"success": False, "error": "Nie udało się wyekstrahować MFCC (zbyt krótki plik lub błąd)"}), 500
+
+        # Save
+        if save_fingerprint(name, mfcc):
+            return jsonify({"success": True, "message": "Wzorzec artefaktu zapisany."})
+        else:
+            return jsonify({"success": False, "error": "Błąd podczas zapisu wzorca."}), 500
+
+    except Exception as e:
+        logger.error(f"Error uploading fingerprint: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@api_bp.route("/artifacts/fingerprints/<fp_id>", methods=["DELETE"])
+def api_artifacts_fingerprints_delete(fp_id: str):
+    from flask_app.artifact_fingerprints import delete_fingerprint
+    if delete_fingerprint(fp_id):
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": "Nie znaleziono wzorca lub błąd usuwania"}), 404
+
+
+# ============================================================
 # Main Entry Point
 # ============================================================
 def _load_engine():

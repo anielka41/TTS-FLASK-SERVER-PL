@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import librosa
 
-from config import config_manager, get_output_path, get_reference_audio_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_audio_sample_rate, get_gen_default_speed_factor, get_gen_default_sentence_pause_ms
+from config import config_manager, get_output_path, get_reference_audio_path, get_gen_default_temperature, get_gen_default_exaggeration, get_gen_default_cfg_weight, get_gen_default_seed, get_gen_default_language, get_audio_sample_rate, get_gen_default_speed_factor, get_gen_default_sentence_pause_ms, get_artifacts_enabled, get_artifacts_text_preprocessing_enabled, get_artifacts_min_sentence_words, get_artifacts_glitch_detection_enabled, get_artifacts_glitch_threshold, get_artifacts_retry_on_glitch
 import engine
 import utils
 import database as db
@@ -131,6 +131,16 @@ def _process_chapter(job_id: str, ch_idx: int):
                 if candidate.exists():
                     prompt_path = str(candidate)
 
+                # ----- Apply Text Pre-Processing -----
+                pipeline_mode = job.get("pipeline_mode", "baseline")
+                if pipeline_mode in ("test_pipeline", "tuning") and get_artifacts_text_preprocessing_enabled():
+                    try:
+                        from flask_app.text_preprocessing import normalize_text_for_tts
+                        min_words = get_artifacts_min_sentence_words()
+                        chunk_text = normalize_text_for_tts(chunk_text, min_sentence_words=min_words)
+                    except Exception as e:
+                        logger.error(f"Text pre-processing failed: {e}")
+
             wav_tensor, sample_rate = engine.synthesize(
                 text=chunk_text,
                 audio_prompt_path=prompt_path,
@@ -150,13 +160,49 @@ def _process_chapter(job_id: str, ch_idx: int):
                 if speed_factor and speed_factor != 1.0 and speed_factor > 0:
                     audio_np = librosa.effects.time_stretch(audio_np, rate=speed_factor)
                     
-                # ----- NEW: Apply Artifact Reduction Pipeline based on mode -----
-                pipeline_mode = job.get("pipeline_mode", "baseline")
+                # ----- Apply Artifact Reduction Pipeline based on mode -----
                 if pipeline_mode in ("test_pipeline", "tuning"):
                     try:
                         from flask_app.artifacts import apply_artifacts_pipeline
                         is_test = (pipeline_mode == "test_pipeline")
-                        audio_np = apply_artifacts_pipeline(audio_np, sr, expected_text=chunk_text, is_test_mode=is_test)
+                        audio_np, glitch_score = apply_artifacts_pipeline(audio_np, sr, expected_text=chunk_text, is_test_mode=is_test)
+                        
+                        # Retry logic: if glitch detected and retry enabled
+                        if (glitch_score is not None 
+                            and get_artifacts_glitch_detection_enabled() 
+                            and get_artifacts_retry_on_glitch() 
+                            and glitch_score > get_artifacts_glitch_threshold()):
+                            
+                            logger.warning(f"Glitch detected (score={glitch_score:.3f}), retrying with modified seed...")
+                            original_seed = get_gen_default_seed()
+                            retry_seed = original_seed + 1 if original_seed > 0 else 42
+                            
+                            retry_tensor, retry_sr = engine.synthesize(
+                                text=chunk_text,
+                                audio_prompt_path=prompt_path,
+                                temperature=get_gen_default_temperature(),
+                                exaggeration=get_gen_default_exaggeration(),
+                                cfg_weight=get_gen_default_cfg_weight(),
+                                seed=retry_seed,
+                                language=lang_code,
+                            )
+                            
+                            if retry_tensor is not None:
+                                retry_np = retry_tensor.squeeze().cpu().numpy()
+                                if speed_factor and speed_factor != 1.0 and speed_factor > 0:
+                                    retry_np = librosa.effects.time_stretch(retry_np, rate=speed_factor)
+                                retry_np, retry_glitch = apply_artifacts_pipeline(retry_np, sr, expected_text=chunk_text, is_test_mode=is_test)
+                                
+                                retry_score = retry_glitch if retry_glitch is not None else float('inf')
+                                if retry_score < glitch_score:
+                                    logger.info(f"Retry improved: {glitch_score:.3f} -> {retry_score:.3f}. Using retried version.")
+                                    audio_np = retry_np
+                                    glitch_score = retry_score
+                                else:
+                                    logger.info(f"Retry did not improve: {glitch_score:.3f} vs {retry_score:.3f}. Keeping original.")
+                            
+                            if glitch_score > get_artifacts_glitch_threshold():
+                                logger.warning(f"Problematic chunk logged: text='{chunk_text[:80]}...', glitch={glitch_score:.3f}")
                     except Exception as e:
                         logger.error(f"Failed to apply artifacts pipeline: {e}")
                 # --------------------------------------------------

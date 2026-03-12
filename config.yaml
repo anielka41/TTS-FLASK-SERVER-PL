@@ -61,11 +61,28 @@ artifacts:
   tuning_panel_enabled: true
   enabled: true
   denoise_enabled: true
-  denoise_strength: 0.6
+  denoise_strength: 0.8
   autoeditor_enabled: true
   autoeditor_threshold: 10
   autoeditor_margin: 0.2
-  ffmpeg_normalize_enabled: true
+  text_preprocessing_enabled: true
+  min_sentence_words: 3
+  loudnorm_enabled: true
+  loudnorm_target_lufs: -23
+  microfade_enabled: true
+  microfade_duration_ms: 15
+  glitch_detection_enabled: true
+  glitch_threshold: 1
+  retry_on_glitch: true
+  trim_silence_enabled: true
+  trim_silence_threshold_db: -40
+  remove_unvoiced_enabled: true
+  remove_unvoiced_min_duration_ms: 300
+  tail_guard_enabled: true
+  tail_guard_max_tail_ms: 500
+  tail_guard_energy_threshold: 0.02
+  fingerprint_enabled: true
+  fingerprint_similarity_threshold: 0.7
 whisper:
   enabled: false
   backend: whisper

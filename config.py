@@ -107,6 +107,24 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "autoeditor_enabled": False,  # auto-editor post-processing on/off
         "autoeditor_threshold": 0.04,  # Silence threshold (amplitude)
         "autoeditor_margin": 0.2,  # Margin before/after silence (seconds)
+        "text_preprocessing_enabled": True,  # Pre-process text for TTS (punctuation, merge short sentences)
+        "min_sentence_words": 3,  # Minimum words for a standalone sentence
+        "loudnorm_enabled": False,  # Loudness normalization (pyloudnorm)
+        "loudnorm_target_lufs": -23.0,  # Target loudness in LUFS
+        "microfade_enabled": True,  # Micro fade-in/out at chunk boundaries
+        "microfade_duration_ms": 15,  # Duration of micro-fades in milliseconds
+        "glitch_detection_enabled": False,  # RMS-based glitch anomaly detection
+        "glitch_threshold": 3.0,  # Glitch score threshold (higher = more tolerant)
+        "retry_on_glitch": False,  # Retry synthesis when glitch detected
+        "trim_silence_enabled": True,  # Trim leading/trailing silence (librosa)
+        "trim_silence_threshold_db": -40.0,
+        "remove_unvoiced_enabled": False,  # Remove long unvoiced segments (parselmouth)
+        "remove_unvoiced_min_duration_ms": 300,
+        "tail_guard_enabled": True,  # VAD-based tail artifact removal
+        "tail_guard_max_tail_ms": 500,  # Max tail to analyze in ms
+        "tail_guard_energy_threshold": 0.02,  # Energy threshold for speech end
+        "fingerprint_enabled": False,  # Compare with known artifact fingerprints
+        "fingerprint_similarity_threshold": 0.7,
     },
     "whisper": {
         "enabled": False,  # Use Whisper validation
@@ -880,7 +898,151 @@ def get_artifacts_denoise_strength() -> float:
     """Returns the mixing strength of RNNoise (0.1 to 1.0)."""
     return config_manager.get_float(
         "artifacts.denoise_strength",
-        _get_default_from_structure("artifacts.denoise_strength", default_val=0.5)
+        _get_default_from_structure("artifacts.denoise_strength")
+    )
+
+
+def get_artifacts_text_preprocessing_enabled() -> bool:
+    """Returns whether text pre-processing is enabled."""
+    return config_manager.get_bool(
+        "artifacts.text_preprocessing_enabled",
+        _get_default_from_structure("artifacts.text_preprocessing_enabled")
+    )
+
+
+def get_artifacts_min_sentence_words() -> int:
+    """Returns minimum words for a standalone sentence."""
+    return config_manager.get_int(
+        "artifacts.min_sentence_words",
+        _get_default_from_structure("artifacts.min_sentence_words")
+    )
+
+
+def get_artifacts_loudnorm_enabled() -> bool:
+    """Returns whether loudness normalization is enabled."""
+    return config_manager.get_bool(
+        "artifacts.loudnorm_enabled",
+        _get_default_from_structure("artifacts.loudnorm_enabled")
+    )
+
+
+def get_artifacts_loudnorm_target_lufs() -> float:
+    """Returns target LUFS for loudness normalization."""
+    return config_manager.get_float(
+        "artifacts.loudnorm_target_lufs",
+        _get_default_from_structure("artifacts.loudnorm_target_lufs")
+    )
+
+
+def get_artifacts_microfade_enabled() -> bool:
+    """Returns whether micro-fades are enabled."""
+    return config_manager.get_bool(
+        "artifacts.microfade_enabled",
+        _get_default_from_structure("artifacts.microfade_enabled")
+    )
+
+
+def get_artifacts_microfade_duration_ms() -> int:
+    """Returns micro-fade duration in milliseconds."""
+    return config_manager.get_int(
+        "artifacts.microfade_duration_ms",
+        _get_default_from_structure("artifacts.microfade_duration_ms")
+    )
+
+
+def get_artifacts_glitch_detection_enabled() -> bool:
+    """Returns whether glitch detection is enabled."""
+    return config_manager.get_bool(
+        "artifacts.glitch_detection_enabled",
+        _get_default_from_structure("artifacts.glitch_detection_enabled")
+    )
+
+
+def get_artifacts_glitch_threshold() -> float:
+    """Returns glitch score threshold."""
+    return config_manager.get_float(
+        "artifacts.glitch_threshold",
+        _get_default_from_structure("artifacts.glitch_threshold")
+    )
+
+
+def get_artifacts_retry_on_glitch() -> bool:
+    """Returns whether retry on glitch is enabled."""
+    return config_manager.get_bool(
+        "artifacts.retry_on_glitch",
+        _get_default_from_structure("artifacts.retry_on_glitch")
+    )
+
+
+def get_artifacts_trim_silence_enabled() -> bool:
+    """Returns whether leading/trailing silence trimming is enabled."""
+    return config_manager.get_bool(
+        "artifacts.trim_silence_enabled",
+        _get_default_from_structure("artifacts.trim_silence_enabled")
+    )
+
+
+def get_artifacts_trim_silence_threshold_db() -> float:
+    """Returns the dB threshold for silence trimming."""
+    return config_manager.get_float(
+        "artifacts.trim_silence_threshold_db",
+        _get_default_from_structure("artifacts.trim_silence_threshold_db")
+    )
+
+
+def get_artifacts_remove_unvoiced_enabled() -> bool:
+    """Returns whether unvoiced segment removal is enabled."""
+    return config_manager.get_bool(
+        "artifacts.remove_unvoiced_enabled",
+        _get_default_from_structure("artifacts.remove_unvoiced_enabled")
+    )
+
+
+def get_artifacts_remove_unvoiced_min_duration_ms() -> int:
+    """Returns minimum duration of unvoiced segments to remove."""
+    return config_manager.get_int(
+        "artifacts.remove_unvoiced_min_duration_ms",
+        _get_default_from_structure("artifacts.remove_unvoiced_min_duration_ms")
+    )
+
+
+def get_artifacts_tail_guard_enabled() -> bool:
+    """Returns whether Tail Guardian is enabled."""
+    return config_manager.get_bool(
+        "artifacts.tail_guard_enabled",
+        _get_default_from_structure("artifacts.tail_guard_enabled")
+    )
+
+
+def get_artifacts_tail_guard_max_tail_ms() -> int:
+    """Returns maximum tail length to analyze for Tail Guardian."""
+    return config_manager.get_int(
+        "artifacts.tail_guard_max_tail_ms",
+        _get_default_from_structure("artifacts.tail_guard_max_tail_ms")
+    )
+
+
+def get_artifacts_tail_guard_energy_threshold() -> float:
+    """Returns energy threshold for Tail Guardian."""
+    return config_manager.get_float(
+        "artifacts.tail_guard_energy_threshold",
+        _get_default_from_structure("artifacts.tail_guard_energy_threshold")
+    )
+
+
+def get_artifacts_fingerprint_enabled() -> bool:
+    """Returns whether artifact fingerprinting is enabled."""
+    return config_manager.get_bool(
+        "artifacts.fingerprint_enabled",
+        _get_default_from_structure("artifacts.fingerprint_enabled")
+    )
+
+
+def get_artifacts_fingerprint_similarity_threshold() -> float:
+    """Returns the similarity threshold for artifact fingerprinting."""
+    return config_manager.get_float(
+        "artifacts.fingerprint_similarity_threshold",
+        _get_default_from_structure("artifacts.fingerprint_similarity_threshold")
     )
 
 

@@ -10,6 +10,7 @@ import sqlite3
 import threading
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional, Dict, Any, List
 
 DB_DIR = Path(__file__).parent / "data"
@@ -177,7 +178,7 @@ def db_create_job(
     pipeline_mode: str = "baseline",
 ) -> Dict[str, Any]:
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         """INSERT INTO jobs (
             job_id, title, text, status, progress,
@@ -279,7 +280,7 @@ def _row_to_job(row: sqlite3.Row) -> Dict[str, Any]:
 
 def db_update_chapter_state(job_id: str, chapter_index: int, worker_name: str, current_chunk: int, total_chunks: int, status: str):
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         """INSERT INTO job_chapters (job_id, chapter_index, worker_name, current_chunk, total_chunks, status, updated_at) 
            VALUES (?, ?, ?, ?, ?, ?, ?)

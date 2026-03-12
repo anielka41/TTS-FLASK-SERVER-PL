@@ -64,7 +64,7 @@ const queueModule = (() => {
     const status = job.status || 'unknown';
     const shortId = (job.job_id || '').slice(0, 8);
     const title = escapeHtml(job.title || 'Brak nazwy projektu');
-    const created = formatDate(job.created_at);
+    const created = formatDate(job.completed_at || job.created_at);
 
     // Calculate dynamic progress
     let progress = job.progress || 0;

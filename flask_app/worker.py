@@ -5,8 +5,10 @@ import re
 import math
 import uuid
 import threading
+import json
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, Any
 import numpy as np
 import torch
@@ -34,7 +36,8 @@ def _process_chapter(job_id: str, ch_idx: int):
 
     try:
         worker_name = os.environ.get("SUPERVISOR_PROCESS_NAME", "Lokalny Worker")
-        db.db_update_job(job_id, status="processing", started_at=datetime.utcnow().isoformat(), worker_name=worker_name, current_chapter=ch_idx + 1)
+        print(f"[Worker {worker_name}] Rozpoczynam iterację nad rozdziałami zadania {job_id}...")
+        db.db_update_job(job_id, status="processing", started_at=datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S"), worker_name=worker_name, current_chapter=ch_idx + 1)
 
         text = job["text"]
         voice_assignments = job.get("voice_assignments", {})
@@ -216,6 +219,16 @@ def _process_chapter(job_id: str, ch_idx: int):
                     padding_np = np.zeros(pause_samples, dtype=audio_np.dtype)
                     audio_parts.append(padding_np)
 
+            # --- Explicitly clear memory after each chunk to prevent slowdowns ---
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            if torch.backends.mps.is_available():
+                try:
+                    torch.mps.empty_cache()
+                except AttributeError:
+                    pass
+
         if audio_parts:
             full_audio = np.concatenate(audio_parts)
             ext = output_format if output_format in ("mp3", "wav", "ogg") else "wav"
@@ -227,7 +240,7 @@ def _process_chapter(job_id: str, ch_idx: int):
                 test_dir = get_output_path(ensure_absolute=True).parent / "test_outputs"
                 test_dir.mkdir(parents=True, exist_ok=True)
                 
-                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y%m%d_%H%M%S")
                 output_filename = f"test_{timestamp}_{job_id[:8]}.{ext}"
                 output_path = test_dir / output_filename
                 
@@ -240,7 +253,7 @@ def _process_chapter(job_id: str, ch_idx: int):
                     output_files=[f"/test_outputs/{output_filename}"],
                     status="completed",
                     progress=100,
-                    completed_at=datetime.utcnow().isoformat(),
+                    completed_at=datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S"),
                 )
                 return
             
@@ -264,7 +277,7 @@ def _process_chapter(job_id: str, ch_idx: int):
                     output_files=all_output_files,
                     status="completed",
                     progress=100,
-                    completed_at=datetime.utcnow().isoformat(),
+                    completed_at=datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S"),
                 )
 
     except Exception as e:

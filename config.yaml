@@ -61,7 +61,7 @@ artifacts:
   tuning_panel_enabled: true
   enabled: true
   denoise_enabled: true
-  denoise_strength: 0.8
+  denoise_strength: 0.1
   autoeditor_enabled: true
   autoeditor_threshold: 10
   autoeditor_margin: 0.2

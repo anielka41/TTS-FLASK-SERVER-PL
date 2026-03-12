@@ -913,7 +913,32 @@ function escapeHtml(str) {
 
 function formatDate(iso) {
   if (!iso) return "-";
-  return new Date(iso).toLocaleString("pl-PL");
+  
+  // W bazie data zapisana jest jako: "2026-03-12 17:50:41" lub "2026-03-12T17:50:41"
+  // Jest to już dokładny czas lokalny dla Europy/Warszawy.
+  // Aby powstrzymać przeglądarkę przed jakąkolwiek re-kalkulacją strefy,
+  // rozbijamy string manualnie.
+  
+  const cleanIso = iso.replace("Z", ""); // Usuń 'Z' jeśli by było (oznacza UTC)
+  // Przykładowy format: 2026-03-12 17:50:41
+  const parts = cleanIso.split(/[ \T]/);
+  if (parts.length < 2) return cleanIso;
+
+  const datePart = parts[0]; // "2026-03-12"
+  const timePart = parts[1]; // "17:50:41" (może mieć ułamki sekund po kropce np. 17:50:41.123)
+  
+  const hms = timePart.split(".")[0].split(":");
+  if (hms.length < 2) return cleanIso;
+  const timeStr = `${hms[0]}:${hms[1]}:${hms[2] || "00"}`;
+
+  const ymd = datePart.split("-");
+  let dateStr = datePart;
+  if (ymd.length === 3) {
+    dateStr = `${ymd[2]}.${ymd[1]}.${ymd[0]}`;
+  }
+
+  return `<div style="font-weight:600;font-size:0.9rem">${timeStr}</div>
+          <div style="font-size:0.7rem;margin-top:-5px">${dateStr}</div>`;
 }
 
 // ===== Dictionary badge on load =====

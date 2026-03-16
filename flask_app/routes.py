@@ -210,22 +210,29 @@ def api_delete_job(job_id: str):
 # ============================================================
 @api_bp.route("/library", methods=["GET"])
 def api_library():
-    completed = db.db_get_jobs(status_filter="completed")
-    lib = [{
-        "job_id": j["job_id"],
-        "title": j["title"],
-        "created_at": j["created_at"],
-        "completed_at": j.get("completed_at"),
-        "output_files": j.get("output_files", []),
-    } for j in completed]
+    # Pobieramy wszystkie zadania zamiast tylko tych "completed"
+    all_jobs = db.db_get_jobs()
+    lib = []
+    for j in all_jobs:
+        # Pokaż w bibliotece tylko te, które mają przynajmniej jeden wygenerowany plik wyjściowy
+        output_files = j.get("output_files", [])
+        if output_files:
+            lib.append({
+                "job_id": j["job_id"],
+                "title": j["title"],
+                "created_at": j["created_at"],
+                "completed_at": j.get("completed_at") or j.get("created_at"),
+                "output_files": output_files,
+            })
     return jsonify({"success": True, "library": lib})
 
 
 @api_bp.route("/library/<job_id>/download", methods=["GET"])
 def api_library_download(job_id: str):
     job = db.db_get_job(job_id)
-    if not job or job["status"] != "completed":
+    if not job:
         abort(404)
+    # Zezwalaj na pobieranie nawet jeśli status nie to 'completed'
     output_files = job.get("output_files", [])
     if not output_files:
         abort(404)

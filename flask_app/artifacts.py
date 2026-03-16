@@ -305,6 +305,21 @@ def apply_artifacts_pipeline(audio_np: np.ndarray, sample_rate: int, expected_te
 
     current_audio = audio_np
 
+    # Measure original loudness BEFORE any processing for volume compensation
+    pre_pipeline_lufs = None
+    try:
+        import pyloudnorm as pyln
+        meter = pyln.Meter(sample_rate)
+        pre_pipeline_lufs = meter.integrated_loudness(audio_np)
+        if np.isinf(pre_pipeline_lufs) or np.isnan(pre_pipeline_lufs):
+            pre_pipeline_lufs = None
+        else:
+            logger.debug(f"Pre-pipeline loudness: {pre_pipeline_lufs:.1f} LUFS")
+    except ImportError:
+        logger.debug("pyloudnorm not installed, volume compensation unavailable.")
+    except Exception as e:
+        logger.debug(f"Could not measure pre-pipeline loudness: {e}")
+
     # 1. Trim leading and trailing silence (Librosa)
     if get_artifacts_trim_silence_enabled() or is_test_mode:
         trim_db = get_artifacts_trim_silence_threshold_db()
@@ -398,7 +413,24 @@ def apply_artifacts_pipeline(audio_np: np.ndarray, sample_rate: int, expected_te
         energy_thresh = get_artifacts_tail_guard_energy_threshold()
         current_audio = tail_guard(current_audio, sample_rate, max_tail_ms=max_tail, energy_threshold=energy_thresh)
 
-    # 6. Loudness Normalization (pyloudnorm)
+    # 5.5 Volume Compensation — restore original loudness after artifact removal
+    if pre_pipeline_lufs is not None:
+        try:
+            import pyloudnorm as pyln
+            meter = pyln.Meter(sample_rate)
+            post_lufs = meter.integrated_loudness(current_audio)
+            if not (np.isinf(post_lufs) or np.isnan(post_lufs)):
+                lufs_loss = pre_pipeline_lufs - post_lufs
+                if abs(lufs_loss) > 0.5:  # Only compensate if meaningful difference
+                    current_audio = pyln.normalize.loudness(current_audio, post_lufs, pre_pipeline_lufs)
+                    current_audio = np.clip(current_audio, -1.0, 1.0).astype(np.float32)
+                    logger.info(f"Volume compensation: {post_lufs:.1f} -> {pre_pipeline_lufs:.1f} LUFS (restored, delta={lufs_loss:+.1f} dB)")
+                else:
+                    logger.debug(f"Volume compensation skipped: delta={lufs_loss:+.1f} dB (below 0.5 dB threshold)")
+        except Exception as e:
+            logger.warning(f"Volume compensation failed: {e}")
+
+    # 6. Loudness Normalization (pyloudnorm) — manual target override
     if get_artifacts_loudnorm_enabled():
         target_lufs = get_artifacts_loudnorm_target_lufs()
         current_audio = apply_loudness_normalization(current_audio, sample_rate, target_lufs)

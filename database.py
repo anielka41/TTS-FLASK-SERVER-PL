@@ -237,6 +237,14 @@ def db_get_job(job_id: str) -> Optional[Dict[str, Any]]:
     return _row_to_job(row) if row else None
 
 
+def db_get_job_status(job_id: str) -> Optional[str]:
+    """Lightweight status-only query — no JSON parsing overhead.
+    Use this in hot loops (chunk iteration) instead of db_get_job()."""
+    conn = _get_conn()
+    row = conn.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+    return row["status"] if row else None
+
+
 def db_get_jobs(status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = _get_conn()
     if status_filter:

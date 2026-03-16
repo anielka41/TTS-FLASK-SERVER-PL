@@ -55,9 +55,9 @@ def _process_chapter(job_id: str, ch_idx: int):
         job_dir = JOBS_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         
-        # Check cancellation
-        current_job_state = db.db_get_job(job_id)
-        if not current_job_state or current_job_state.get("status") == "cancelled":
+        # Check cancellation (lightweight)
+        job_status = db.db_get_job_status(job_id)
+        if not job_status or job_status == "cancelled":
             return
 
         db.db_update_job(job_id, current_chapter=ch_idx + 1, status="processing")
@@ -96,17 +96,17 @@ def _process_chapter(job_id: str, ch_idx: int):
         sr = get_audio_sample_rate()
 
         for i, (speaker, chunk_text) in enumerate(all_chunks):
-            # Check cancellation
-            current_job_state_chunk = db.db_get_job(job_id)
-            if not current_job_state_chunk or current_job_state_chunk.get("status") == "cancelled":
+            # Check cancellation (lightweight — status only, no JSON parsing)
+            job_status = db.db_get_job_status(job_id)
+            if not job_status or job_status == "cancelled":
                 return
 
-            # Check pause
+            # Check pause (lightweight — status only)
             while True:
-                current_job_state_pause = db.db_get_job(job_id)
-                if not current_job_state_pause:
+                job_status = db.db_get_job_status(job_id)
+                if not job_status:
                     return
-                if current_job_state_pause.get("status") != "paused":
+                if job_status != "paused":
                     break
                 time.sleep(1.0)
 
@@ -219,15 +219,18 @@ def _process_chapter(job_id: str, ch_idx: int):
                     padding_np = np.zeros(pause_samples, dtype=audio_np.dtype)
                     audio_parts.append(padding_np)
 
-            # --- Explicitly clear memory after each chunk to prevent slowdowns ---
+            # --- Aggressively release transient variables after each chunk ---
+            try:
+                del wav_tensor
+            except NameError:
+                pass
+            try:
+                del audio_np
+            except NameError:
+                pass
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            if torch.backends.mps.is_available():
-                try:
-                    torch.mps.empty_cache()
-                except AttributeError:
-                    pass
 
         if audio_parts:
             full_audio = np.concatenate(audio_parts)
@@ -247,14 +250,24 @@ def _process_chapter(job_id: str, ch_idx: int):
                 audio_bytes = _encode_audio_to_format(full_audio, sr, output_format, output_bitrate)
                 output_path.write_bytes(audio_bytes)
                 
+                timestamps = datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S")
+                # Immediately update output files array
+                current_job = db.db_get_job(job_id)
+                new_files = list(current_job.get("output_files", []))
+                new_file_url = f"/test_outputs/{output_filename}"
+                if new_file_url not in new_files:
+                    new_files.append(new_file_url)
+                
                 db.db_update_chapter_state(job_id, ch_idx, worker_name, total_chunks, total_chunks, "completed")
                 db.db_update_job(
                     job_id,
-                    output_files=[f"/test_outputs/{output_filename}"],
+                    output_files=new_files,
                     status="completed",
                     progress=100,
-                    completed_at=datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S"),
+                    completed_at=timestamps,
                 )
+                
+                del full_audio, audio_parts, audio_bytes
                 return
             
             # File name: chapter_number.format
@@ -266,34 +279,72 @@ def _process_chapter(job_id: str, ch_idx: int):
             db.db_update_chapter_state(job_id, ch_idx, worker_name, total_chunks, total_chunks, "completed")
             completed_count = db.db_increment_completed_chapters(job_id)
             
+            # Immediately append this chapter's file to the job's `output_files` in the database!
+            current_job = db.db_get_job(job_id)
+            current_files = list(current_job.get("output_files", []))
+            new_file_url = f"/outputs/{job_id}/{ch_idx + 1}.{ext}"
+            if new_file_url not in current_files:
+                current_files.append(new_file_url)
+                
+            db.db_update_job(job_id, output_files=current_files)
+            
             if completed_count >= total_chapters:
                 # Ostatni z workerów łączy wszystko
-                all_output_files = []
-                for i in range(total_chapters):
-                    all_output_files.append(f"/outputs/{job_id}/{i + 1}.{ext}")
-                
                 db.db_update_job(
                     job_id,
-                    output_files=all_output_files,
                     status="completed",
                     progress=100,
                     completed_at=datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M:%S"),
                 )
+                
+            del full_audio, audio_parts, audio_bytes
 
     except Exception as e:
         logger.error(f"Job {job_id} Chapter {ch_idx} failed: {e}", exc_info=True)
         db.db_update_job(job_id, status="failed", error=str(e))
         db.db_update_chapter_state(job_id, ch_idx, worker_name if 'worker_name' in locals() else "unknown", 0, 0, "failed")
     finally:
-        # VRAM cleanup
-        if config_manager.get_bool("audio_output.cleanup_vram_after_job", False):
-            logger.info(f"Job {job_id} ch {ch_idx}: cleaning up VRAM...")
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            if torch.backends.mps.is_available():
-                try:
-                    torch.mps.empty_cache()
-                except AttributeError:
-                    pass
-                    pass
+        # Aggressively release all large variables.
+        # NOTE: the old exec(f"del {_varname}") approach does NOT work —
+        # exec() runs in its own scope and cannot delete variables from
+        # the enclosing function.  We use direct deletion instead.
+        try:
+            del audio_parts
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del all_chunks
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del full_audio
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del audio_bytes
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del segments
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del job
+        except (NameError, UnboundLocalError):
+            pass
+        try:
+            del chapter_text
+        except (NameError, UnboundLocalError):
+            pass
+
+        # Always run GC + VRAM cleanup after every chapter, unconditionally
+        gc.collect()
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if torch.backends.mps.is_available():
+            try:
+                torch.mps.empty_cache()
+            except AttributeError:
+                pass
+

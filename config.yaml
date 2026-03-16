@@ -26,7 +26,7 @@ generation_defaults:
   cfg_weight: 0.5
   seed: 0
   speed_factor: 1.0
-  sentence_pause_ms: 250
+  sentence_pause_ms: 300
   language: pl
   chunk_size: 200
   top_p: 0.9

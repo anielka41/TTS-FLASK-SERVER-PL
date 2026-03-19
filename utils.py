@@ -782,44 +782,46 @@ def remove_long_unvoiced_segments(
             audio_array.astype(np.float64), sampling_frequency=sample_rate
         )
         pitch = sound.to_pitch(pitch_floor=pitch_floor, pitch_ceiling=pitch_ceiling)
-        pitch_values = pitch.selected_array['frequency']
-        
-        # In Praat/Parselmouth, unvoiced frames are typically represented with a frequency of 0
-        min_unvoiced_samples = int((min_unvoiced_duration_ms / 1000.0) * sample_rate)
-        
+        voiced_unvoiced = pitch.get_VoicedVoicelessUnvoiced()
+
         segments_to_keep = []
         current_segment_start_sample = 0
-        in_unvoiced_region = False
-        unvoiced_start_time = 0.0
-        
-        for i, f0 in enumerate(pitch_values):
-            time_at_frame = pitch.get_time_from_frame_number(i + 1)
-            is_unvoiced = (f0 == 0.0)
-            
-            if is_unvoiced and not in_unvoiced_region:
-                in_unvoiced_region = True
-                unvoiced_start_time = time_at_frame
-            elif not is_unvoiced and in_unvoiced_region:
-                in_unvoiced_region = False
-                unvoiced_duration = time_at_frame - unvoiced_start_time
-                
-                # If the unvoiced segment is long enough to remove
-                if unvoiced_duration >= (min_unvoiced_duration_ms / 1000.0):
-                    unvoiced_start_sample = int(unvoiced_start_time * sample_rate)
-                    unvoiced_end_sample = int(time_at_frame * sample_rate)
-                    
-                    logger.debug(
-                        f"Removing long unvoiced segment from {unvoiced_start_time:.2f}s to {time_at_frame:.2f}s."
-                    )
-                    
-                    # Keep the audio before this unvoiced segment
-                    if unvoiced_start_sample > current_segment_start_sample:
-                        segments_to_keep.append(
-                            audio_array[current_segment_start_sample:unvoiced_start_sample]
-                        )
-                    current_segment_start_sample = unvoiced_end_sample
+        min_unvoiced_samples = int((min_unvoiced_duration_ms / 1000.0) * sample_rate)
 
-        # Add the remaining audio
+        for i in range(len(voiced_unvoiced.time_intervals)):
+            interval_start_time, interval_end_time, is_voiced_str = (
+                voiced_unvoiced.time_intervals[i]
+            )
+            is_voiced = is_voiced_str == "voiced"
+
+            interval_start_sample = int(interval_start_time * sample_rate)
+            interval_end_sample = int(interval_end_time * sample_rate)
+            interval_duration_samples = interval_end_sample - interval_start_sample
+
+            if is_voiced:
+                segments_to_keep.append(
+                    audio_array[current_segment_start_sample:interval_end_sample]
+                )
+                current_segment_start_sample = interval_end_sample
+            else:  # Unvoiced segment
+                if interval_duration_samples < min_unvoiced_samples:
+                    segments_to_keep.append(
+                        audio_array[current_segment_start_sample:interval_end_sample]
+                    )
+                    current_segment_start_sample = interval_end_sample
+                else:
+                    logger.debug(
+                        f"Removing long unvoiced segment from {interval_start_time:.2f}s to {interval_end_time:.2f}s."
+                    )
+                    # Append the audio *before* this long unvoiced segment (if any)
+                    if interval_start_sample > current_segment_start_sample:
+                        segments_to_keep.append(
+                            audio_array[
+                                current_segment_start_sample:interval_start_sample
+                            ]
+                        )
+                    current_segment_start_sample = interval_end_sample
+
         if current_segment_start_sample < len(audio_array):
             segments_to_keep.append(audio_array[current_segment_start_sample:])
 

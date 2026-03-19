@@ -51,7 +51,6 @@ def _acquire_lock(worker_id: str):
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lock_fd.write(str(os.getpid()))
         lock_fd.flush()
-        logger.info(f"Lock acquired: {lock_path} (PID={os.getpid()})")
         return lock_fd
     except BlockingIOError:
         logger.error(
@@ -107,8 +106,6 @@ def _cleanup_memory():
         except AttributeError:
             pass
 
-    logger.info("Memory cleanup completed (model unloaded, gc.collect, CUDA cache cleared).")
-
 
 def start_worker():
     load_dotenv()
@@ -137,11 +134,10 @@ def start_worker():
         
         # (Re-)load the TTS model if it's not loaded
         if not engine.MODEL_LOADED:
-            logger.info(f"Worker '{worker_id}' (PID={os.getpid()}) loading TTS model...")
             if not engine.load_model():
                 logger.error("CRITICAL: TTS Model failed to load in worker!")
                 sys.exit(1)
-            logger.info("TTS Model loaded successfully in worker.")
+
 
         # Remove stale worker records to prevent crash loops on boot
         worker_key = f"rq:worker:{worker_id}"
@@ -154,55 +150,28 @@ def start_worker():
             name=worker_id,
         )
 
-        logger.info(f"Worker '{worker_id}' waiting for next job (burst mode, "
-                        f"jobs_processed={jobs_processed})...")
+        logger.info(f"Worker '{worker_id}' ready and waiting for exactly ONE job (max_jobs=1)...")
 
-        # burst=True  →  process ONE job from the queue, then return.
-        # Returns True if a job was processed, False if queue was empty.
-        did_work = worker.work(burst=True)
+        # burst=False, max_jobs=1
+        # This will block indefinitely until a job arrives.
+        # Once exactly ONE job is processed, work() returns True.
+        # This fixes the bug where burst=True processed the entire queue before exiting!
+        did_work = worker.work(burst=False, max_jobs=1)
 
         if did_work:
             jobs_processed += 1
-            logger.info(f"Worker '{worker_id}' completed {jobs_processed} job(s). "
+            logger.info(f"Worker '{worker_id}' completed 1 job. "
                         f"Triggering Hard Exit to allow Supervisor to recycle OS memory...")
             _cleanup_memory()
-            # Clean exit zero to let Supervisor cleanly restart it
             sys.exit(0)
-        else:
-            # Queue was empty — wait and then exit so we don't spin CPU too fast,
-            # but we still exit so Supervisor restarts us in a clean state,
-            # or we could just sleep and loop until we get work.
-            # To avoid Supervisor spamming restarts when idle, we WILL loop while idle.
-            pass
 
-        # If we got here, we didn't do work. We can loop internally just for polling.
-        while not did_work:
-            time.sleep(3)
-            # Re-init worker to avoid stale connections
-            worker_key = f"rq:worker:{worker_id}"
-            redis_conn.srem("rq:workers", worker_key)
-            redis_conn.delete(worker_key)
-            worker = SimpleWorker(
-                ['chapters'],
-                connection=redis_conn,
-                name=worker_id,
-            )
-            did_work = worker.work(burst=True)
-            if did_work:
-                jobs_processed += 1
-                logger.info(f"Worker '{worker_id}' completed {jobs_processed} job(s). "
-                            f"Triggering Hard Exit to allow Supervisor to recycle OS memory...")
-                _cleanup_memory()
-                sys.exit(0)
 
     except KeyboardInterrupt:
-        logger.info(f"Worker '{worker_id}' received KeyboardInterrupt, shutting down.")
         sys.exit(0)
     except Exception as e:
         logger.error(f"Worker '{worker_id}' crashed: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        logger.info(f"Worker '{worker_id}' shutting down, releasing lock...")
         _cleanup_memory()
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)

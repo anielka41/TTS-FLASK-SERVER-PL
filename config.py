@@ -249,7 +249,6 @@ class YamlConfigManager:
             _set_nested_value(config_data, ["tts_engine", "device"], resolved_device)
 
         final_device = _get_nested_value(config_data, ["tts_engine", "device"])
-        logger.info(f"TTS processing device resolved to: {final_device}")
 
         # Convert relevant string paths to Path objects.
         path_key_map_for_conversion = {
@@ -282,7 +281,6 @@ class YamlConfigManager:
                 test_tensor = torch.tensor([1.0])
                 test_tensor = test_tensor.cuda()
                 test_tensor = test_tensor.cpu()  # Clean up
-                logger.info("CUDA test successful. Using CUDA device.")
                 return "cuda"
             except Exception as e:
                 logger.warning(
@@ -297,7 +295,6 @@ class YamlConfigManager:
                 test_tensor = torch.tensor([1.0])
                 test_tensor = test_tensor.to("mps")
                 test_tensor = test_tensor.cpu()  # Clean up
-                logger.info("MPS test successful. Using MPS device.")
                 return "mps"
             except Exception as e:
                 logger.warning(
@@ -305,7 +302,6 @@ class YamlConfigManager:
                     f"This usually means PyTorch was not compiled with MPS support."
                 )
 
-        logger.info("Neither CUDA nor MPS is available or functional. Using CPU.")
         return "cpu"
 
     def _prepare_config_for_saving(self, config_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -355,9 +351,6 @@ class YamlConfigManager:
                         effective_config = deepcopy(base_defaults)
                         _deep_merge_dicts(yaml_data, effective_config)
                         self.config = effective_config
-                        logger.info(
-                            f"Successfully loaded and merged configuration from {CONFIG_FILE_PATH}."
-                        )
                     else:
                         logger.error(
                             f"Invalid format in {CONFIG_FILE_PATH}. Expected a dictionary. "
@@ -385,9 +378,6 @@ class YamlConfigManager:
                     )
                     self.config = base_defaults  # Use defaults, avoid saving on unexpected errors.
             else:
-                logger.info(
-                    f"{CONFIG_FILE_PATH} not found. Creating initial configuration using defaults..."
-                )
                 # Start with defaults.
                 self.config = base_defaults
                 if self._save_config_yaml_internal(self.config):

@@ -30,9 +30,7 @@ try:
     logger = logging.getLogger(
         __name__
     )  # Initialize logger here if librosa is available
-    logger.info(
-        "Librosa library found and will be used for audio resampling and time stretching."
-    )
+
 except ImportError:
     LIBROSA_AVAILABLE = False
     logger = logging.getLogger(__name__)
@@ -46,9 +44,6 @@ try:
     import parselmouth
 
     PARSELMOUTH_AVAILABLE = True
-    logger.info(
-        "Parselmouth library found and will be used for unvoiced segment removal if enabled."
-    )
 except ImportError:
     PARSELMOUTH_AVAILABLE = False
     logger.warning(
@@ -264,9 +259,6 @@ def encode_audio(
         and LIBROSA_AVAILABLE
     ):
         try:
-            logger.info(
-                f"Resampling audio from {sample_rate}Hz to {target_sample_rate}Hz using Librosa."
-            )
             audio_array = librosa.resample(
                 y=audio_array, orig_sr=sample_rate, target_sr=target_sample_rate
             )
@@ -352,9 +344,7 @@ def encode_audio(
 
         encoded_bytes = output_buffer.getvalue()
         end_time = time.time()
-        logger.info(
-            f"Encoded {len(encoded_bytes)} bytes to '{output_format}' at {rate_to_write}Hz in {end_time - start_time:.3f} seconds."
-        )
+
         return encoded_bytes
 
     except ImportError as ie_sf:  # Specifically for soundfile import issues
@@ -415,9 +405,7 @@ def save_audio_to_file(
             str(file_path), audio_int16, sample_rate, format="wav", subtype="pcm_16"
         )
         end_time = time.time()
-        logger.info(
-            f"Saved WAV file to {file_path} in {end_time - start_time:.3f} seconds."
-        )
+
         return True
     except ImportError:
         logger.critical("SoundFile library not found. Cannot save audio.")
@@ -463,9 +451,7 @@ def save_audio_tensor_to_file(
             str(file_path), audio_tensor_cpu, sample_rate, format=output_format
         )
         end_time = time.time()
-        logger.info(
-            f"Saved audio tensor to {file_path} (format: {output_format}) in {end_time - start_time:.3f} seconds."
-        )
+
         return True
     except Exception as e:
         logger.error(f"Error saving audio tensor to {file_path}: {e}", exc_info=True)
@@ -527,9 +513,7 @@ def apply_speed_factor(
                 y=audio_np, rate=speed_factor
             )
             speed_adjusted_tensor = torch.from_numpy(stretched_audio_np)
-            logger.info(
-                f"Applied speed factor {speed_factor} using librosa.effects.time_stretch. Original SR: {sample_rate}"
-            )
+
             return speed_adjusted_tensor, sample_rate  # Sample rate is preserved
         except Exception as e_librosa:
             logger.error(
@@ -1067,10 +1051,6 @@ def chunk_text_by_sentences(
             current_chunk_length = segment_len
 
         if current_chunk_length > chunk_size and len(current_chunk_sentences) == 1:
-            logger.info(
-                f"A single segment (length {current_chunk_length}) exceeds chunk_size {chunk_size}. "
-                f"It will form its own chunk."
-            )
             text_chunks.append(" ".join(current_chunk_sentences))
             current_chunk_sentences = []
             current_chunk_length = 0
@@ -1086,7 +1066,6 @@ def chunk_text_by_sentences(
         )
         return [full_text.strip()]
 
-    logger.info(f"Text chunking complete. Generated {len(text_chunks)} chunk(s).")
     return text_chunks
 
 
@@ -1186,9 +1165,6 @@ def get_predefined_voices() -> List[Dict[str, str]]:
             )
 
         predefined_voice_list.sort(key=lambda x: x["display_name"].lower())
-        logger.info(
-            f"Found {len(predefined_voice_list)} predefined voices in {voices_dir_path}"
-        )
 
     except Exception as e:
         logger.error(

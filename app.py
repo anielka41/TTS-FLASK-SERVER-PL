@@ -55,5 +55,5 @@ if __name__ == "__main__":
 
     host = get_host()
     port = get_port()
-    logger.info(f"Starting Chatterbox Flask PL on http://{host}:{port}")
+    #logger.info(f"Starting Chatterbox Flask PL on http://{host}:{port}")
     app.run(host=host, port=port, debug=False, threaded=True)

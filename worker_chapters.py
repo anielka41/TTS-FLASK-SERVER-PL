@@ -131,51 +131,73 @@ def start_worker():
 
         jobs_processed = 0
 
-        # ── Outer loop: process one job at a time, restart memory between jobs ──
-        while True:
-            # (Re-)load the TTS model if it's not loaded
-            if not engine.MODEL_LOADED:
-                logger.info(f"Worker '{worker_id}' (PID={os.getpid()}) loading TTS model...")
-                if not engine.load_model():
-                    logger.error("CRITICAL: TTS Model failed to load in worker!")
-                    time.sleep(5)
-                    continue
-                logger.info("TTS Model loaded successfully in worker.")
+        # We don't use a while True loop anymore.
+        # Supervisor ensures the process is restarted. By exiting, we force
+        # the OS to fully reclaim ALL memory (Python, PyTorch, Librosa, C libs).
+        
+        # (Re-)load the TTS model if it's not loaded
+        if not engine.MODEL_LOADED:
+            logger.info(f"Worker '{worker_id}' (PID={os.getpid()}) loading TTS model...")
+            if not engine.load_model():
+                logger.error("CRITICAL: TTS Model failed to load in worker!")
+                sys.exit(1)
+            logger.info("TTS Model loaded successfully in worker.")
 
-            # Remove stale worker records to prevent crash loops on boot
+        # Remove stale worker records to prevent crash loops on boot
+        worker_key = f"rq:worker:{worker_id}"
+        redis_conn.srem("rq:workers", worker_key)
+        redis_conn.delete(worker_key)
+
+        worker = SimpleWorker(
+            ['chapters'],
+            connection=redis_conn,
+            name=worker_id,
+        )
+
+        logger.info(f"Worker '{worker_id}' waiting for next job (burst mode, "
+                        f"jobs_processed={jobs_processed})...")
+
+        # burst=True  →  process ONE job from the queue, then return.
+        # Returns True if a job was processed, False if queue was empty.
+        did_work = worker.work(burst=True)
+
+        if did_work:
+            jobs_processed += 1
+            logger.info(f"Worker '{worker_id}' completed {jobs_processed} job(s). "
+                        f"Triggering Hard Exit to allow Supervisor to recycle OS memory...")
+            _cleanup_memory()
+            # Clean exit zero to let Supervisor cleanly restart it
+            sys.exit(0)
+        else:
+            # Queue was empty — wait and then exit so we don't spin CPU too fast,
+            # but we still exit so Supervisor restarts us in a clean state,
+            # or we could just sleep and loop until we get work.
+            # To avoid Supervisor spamming restarts when idle, we WILL loop while idle.
+            pass
+
+        # If we got here, we didn't do work. We can loop internally just for polling.
+        while not did_work:
+            time.sleep(3)
+            # Re-init worker to avoid stale connections
             worker_key = f"rq:worker:{worker_id}"
             redis_conn.srem("rq:workers", worker_key)
             redis_conn.delete(worker_key)
-
             worker = SimpleWorker(
                 ['chapters'],
                 connection=redis_conn,
                 name=worker_id,
             )
-
-            logger.info(f"Worker '{worker_id}' waiting for next job (burst mode, "
-                         f"jobs_processed={jobs_processed})...")
-
-            # burst=True  →  process ONE job from the queue, then return.
-            # Returns True if a job was processed, False if queue was empty.
             did_work = worker.work(burst=True)
-
             if did_work:
                 jobs_processed += 1
-                if jobs_processed >= MAX_JOBS_BEFORE_RESTART:
-                    logger.info(f"Worker '{worker_id}' completed {jobs_processed} job(s). "
-                                f"Running full memory cleanup cycle...")
-                    _cleanup_memory()
-                    jobs_processed = 0
-                    time.sleep(RESTART_DELAY_SECONDS)
-            else:
-                # Queue was empty — wait before polling again.
-                # Longer delay to avoid log spam and CPU waste.
-                time.sleep(3)
-
+                logger.info(f"Worker '{worker_id}' completed {jobs_processed} job(s). "
+                            f"Triggering Hard Exit to allow Supervisor to recycle OS memory...")
+                _cleanup_memory()
+                sys.exit(0)
 
     except KeyboardInterrupt:
         logger.info(f"Worker '{worker_id}' received KeyboardInterrupt, shutting down.")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Worker '{worker_id}' crashed: {e}", exc_info=True)
         sys.exit(1)

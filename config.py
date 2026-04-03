@@ -110,7 +110,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "text_preprocessing_enabled": True,  # Pre-process text for TTS (punctuation, merge short sentences)
         "min_sentence_words": 3,  # Minimum words for a standalone sentence
         "loudnorm_enabled": False,  # Loudness normalization (pyloudnorm)
-        "loudnorm_target_lufs": -23.0,  # Target loudness in LUFS
+        "loudnorm_target_lufs": -20.0,  # Target loudness in LUFS
         "microfade_enabled": True,  # Micro fade-in/out at chunk boundaries
         "microfade_duration_ms": 15,  # Duration of micro-fades in milliseconds
         "glitch_detection_enabled": False,  # RMS-based glitch anomaly detection

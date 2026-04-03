@@ -154,13 +154,22 @@ const queueModule = (() => {
       progressCol = '<span style="color:var(--text-muted)">—</span>';
     }
 
+    const completedCh = job.completed_chapters || 0;
+    const totalCh = job.total_chapters || 0;
+    const hasUnfinished = totalCh > 0 && completedCh < totalCh;
+
     let actions = '';
     if (status === 'processing') {
       actions = `<button class="btn btn-warning btn-sm" onclick="queueModule.pauseJob('${job.job_id}')">⏸ Wstrzymaj</button>`;
     } else if (status === 'paused') {
       actions = `<button class="btn btn-success btn-sm" onclick="queueModule.resumeJob('${job.job_id}')">▶ Wznów</button>`;
+      if (hasUnfinished) {
+        actions += ` <button class="btn btn-primary btn-sm" onclick="queueModule.retryJob('${job.job_id}')" title="Ponownie wstaw do kolejki brakujące rozdziały">🔄 Wznów brakujące</button>`;
+      }
     } else if (status === 'queued') {
       actions = `<button class="btn btn-danger btn-sm" onclick="queueModule.cancelJob('${job.job_id}')">✕ Anuluj</button>`;
+    } else if ((status === 'cancelled' || status === 'failed') && hasUnfinished) {
+      actions = `<button class="btn btn-primary btn-sm" onclick="queueModule.retryJob('${job.job_id}')" title="Ponownie wstaw do kolejki brakujące rozdziały">🔄 Wznów brakujące</button>`;
     }
 
     actions += ` <button class="btn btn-secondary btn-sm" onclick="queueModule.deleteJob('${job.job_id}')" title="Usuń">🗑</button>`;
@@ -200,6 +209,15 @@ const queueModule = (() => {
     } catch (e) { showToast('Błąd: ' + e.message, 'error'); }
   }
 
+  async function retryJob(jobId) {
+    try {
+      const resp = await fetch(`/api/jobs/${jobId}/retry`, { method: 'POST' });
+      const data = await resp.json();
+      if (data.success) { showToast(`Wznowiono: ${data.requeued} rozdział(ów) w kolejce`, 'success'); refresh(); }
+      else showToast(data.error, 'error');
+    } catch (e) { showToast('Błąd: ' + e.message, 'error'); }
+  }
+
   async function cancelJob(jobId) {
     stopPolling();
     if (!confirm('Anulować to zadanie?')) { startPolling(); return; }
@@ -225,5 +243,5 @@ const queueModule = (() => {
   // Uruchom auto-odświeżanie
   startPolling();
 
-  return { refresh, startPolling, stopPolling, pauseJob, resumeJob, cancelJob, deleteJob };
+  return { refresh, startPolling, stopPolling, pauseJob, resumeJob, retryJob, cancelJob, deleteJob };
 })();

@@ -183,6 +183,46 @@ def api_resume_job(job_id: str):
     return jsonify({"success": True})
 
 
+@api_bp.route("/jobs/<job_id>/retry", methods=["POST"])
+def api_retry_job(job_id: str):
+    """Re-enqueue only the chapters that were not completed yet."""
+    job = db.db_get_job(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job nie znaleziony"}), 404
+
+    allowed_statuses = ("cancelled", "failed", "paused")
+    if job["status"] not in allowed_statuses:
+        return jsonify({"success": False, "error": f"Nie można wznowić zadania o statusie '{job['status']}'"}), 400
+
+    chapters = job.get("chapters", [])
+    total_chapters = len(chapters) if chapters else 1
+    chapter_states = db.db_get_chapter_states(job_id)
+    completed_indices = {s["chapter_index"] for s in chapter_states if s["status"] == "completed"}
+
+    pending_indices = [i for i in range(total_chapters) if i not in completed_indices]
+    if not pending_indices:
+        return jsonify({"success": False, "error": "Wszystkie rozdziały są już ukończone"}), 400
+
+    # Reset job state
+    db.db_update_job(
+        job_id,
+        status="queued",
+        error=None,
+        completed_chapters=len(completed_indices),
+    )
+
+    # Re-enqueue pending chapters
+    from redis import Redis
+    from rq import Queue
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    q = Queue("chapters", connection=Redis.from_url(redis_url))
+    for ch_idx in pending_indices:
+        q.enqueue("flask_app.worker._process_chapter", job_id, ch_idx, job_timeout=3600, result_ttl=86400)
+
+    logger.info(f"Retry job {job_id}: re-enqueued {len(pending_indices)} chapters {pending_indices}")
+    return jsonify({"success": True, "requeued": len(pending_indices)})
+
+
 @api_bp.route("/jobs/<job_id>/cancel", methods=["POST"])
 def api_cancel_job(job_id: str):
     job = db.db_get_job(job_id)
